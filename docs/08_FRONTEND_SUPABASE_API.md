@@ -9,13 +9,13 @@ The frontend must define the public browser configuration before importing the
 Supabase modules:
 
 ```html
-<script src="./js/supabase-config.js"></script>
+<script src="./js/supabase-config.runtime.js"></script>
 <script type="module">
     import * as repo from "./js/supabase-repository.js";
 </script>
 ```
 
-Local `js/supabase-config.js`:
+Runtime `js/supabase-config.runtime.js`:
 
 ```javascript
 window.TG_SUPABASE = {
@@ -25,6 +25,8 @@ window.TG_SUPABASE = {
 ```
 
 Only the Project URL and publishable/anon key belong in browser configuration.
+The committed runtime file contains the real Project URL and no secret key by default.
+Before production use, provide the publishable/anon key through the deployment/runtime configuration.
 Never expose `service_role`.
 
 ## Auth
