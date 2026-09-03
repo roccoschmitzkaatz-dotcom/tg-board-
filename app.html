@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TG Board — Schüler-Austausch</title>
+<style>
+  :root{
+    --bg:#eef1f6; --card:#ffffff; --card2:#f7f9fc; --ink:#141d2b; --muted:#5c6a82; --faint:#93a0b5;
+    --line:#e2e8f1; --accent:#4f6ef7; --accent-ink:#3a56d4; --teal:#12b3a6; --amber:#f0961e;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,monospace;
+    --shadow:0 1px 2px rgba(20,29,43,.04),0 8px 24px rgba(20,29,43,.06);
+    --pos:#1a9e6b; --neg:#e0455a;
+  }
+  @media(prefers-color-scheme:dark){:root{
+    --bg:#0c1220; --card:#141d2c; --card2:#101827; --ink:#ffffff; --muted:#c2ccdb; --faint:#93a0b5;
+    --line:#233043; --accent:#5f7cff; --accent-ink:#9db0ff; --shadow:0 8px 28px rgba(0,0,0,.4);
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:26px 18px 70px}
+  .badge{font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center;margin-bottom:10px}
+  h1,h2{margin:0 0 10px}
+  h2{font-size:16px}
+  .row{display:flex;align-items:center;gap:10px}
+  .row.between{justify-content:space-between}
+  .grid{display:grid;gap:11px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:560px){.g2,.g3{grid-template-columns:1fr}}
+  .btn{font:600 13.5px/1 var(--sans);padding:10px 16px;border-radius:9px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
+  .btn:hover{filter:brightness(1.05)}
+  .btn.ghost{background:transparent;color:var(--accent-ink);border-color:var(--line)}
+  .loading,.empty,.error{padding:20px;text-align:center;color:var(--muted);font-size:13.5px}
+  .error{color:var(--neg)}
+
+  /* --- Auth --- */
+  .auth-wrap{min-height:70vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .auth-card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:28px 26px;width:100%;max-width:360px}
+  .auth-brand{font-weight:700;font-size:19px;margin-bottom:18px;display:flex;align-items:center;gap:8px}
+  .auth-brand .mk{background:var(--accent);color:#fff;font-family:var(--mono);font-size:12px;font-weight:700;padding:3px 7px;border-radius:6px}
+  .auth-tabs{display:flex;gap:4px;background:var(--card2);padding:4px;border-radius:9px;margin-bottom:16px}
+  .auth-tab{flex:1;font:600 13px var(--sans);padding:8px;border:none;background:transparent;color:var(--muted);border-radius:6px;cursor:pointer}
+  .auth-tab.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+  .auth-form{display:flex;flex-direction:column;gap:12px}
+  .auth-form label{font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:5px}
+  .auth-form input{font:14px var(--sans);padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card2);color:var(--ink)}
+  .auth-submit{margin-top:4px}
+  .auth-msg{margin-top:12px;font-size:12.5px;min-height:1em}
+  .auth-msg.ok{color:var(--pos)}
+  .auth-msg.err{color:var(--neg)}
+
+  /* --- App shell --- */
+  .app-top{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--line);margin-bottom:18px}
+  .who{display:flex;align-items:center;gap:8px;font-size:14px}
+  .who .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .role{font-family:var(--mono);font-size:10.5px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px}
+  .role-lehrer,.role-sekretariat,.role-admin{color:var(--accent-ink);border-color:var(--accent)}
+
+  /* --- Forum nav --- */
+  .forum-nav{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-bottom:14px}
+  .forum-nav button{background:none;border:none;color:var(--accent-ink);cursor:pointer;font:inherit;padding:0}
+  .forum-nav .sep{margin:0 4px}
+  .stufe-card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:18px;text-align:center;cursor:pointer}
+  .stufe-card .big{font-size:26px;font-weight:700}
+  .stufe-card .lbl{font-size:12px;color:var(--muted);margin-top:4px}
+  .subject-card{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:11px;box-shadow:var(--shadow);padding:12px 14px;text-align:left;cursor:pointer;font:600 13.5px var(--sans);color:var(--ink)}
+  .subject-card .ic{width:9px;height:9px;border-radius:50%;background:var(--sc);flex:none}
+
+  /* --- Thread list --- */
+  #new-thread-form{display:flex;gap:8px;margin:10px 0 16px}
+  #new-thread-form input{flex:1;font:14px var(--sans);padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card2);color:var(--ink)}
+  .thread-row{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font:inherit;color:var(--ink)}
+  .thread-row .tt{font-weight:600;font-size:14px}
+  .thread-row .sub{display:flex;justify-content:space-between;font-size:11.5px;color:var(--faint);margin-top:5px}
+  .solved{color:var(--pos);font-weight:700}
+
+  /* --- Thread detail --- */
+  .thread-title{font-size:19px;margin-bottom:10px}
+  .post-row{border-bottom:1px solid var(--line);padding:12px 0}
+  .post-row .ph{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+  .post-row .you{color:var(--accent-ink);font-weight:600}
+  .post-row .when{margin-left:auto;font-family:var(--mono);font-size:11px}
+  .post-row .bd{margin-top:5px;font-size:14px}
+  .reply-box{margin-top:16px}
+  .reply-box textarea{width:100%;font:14px var(--sans);padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card2);color:var(--ink);resize:vertical}
+  .reply-box .btn{margin-top:8px}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="badge" id="mode-badge"></div>
+    <div id="app-root"></div>
+  </div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
