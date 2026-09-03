@@ -83,6 +83,11 @@
   .subject-card .ic{width:9px;height:9px;border-radius:50%;background:var(--sc);flex:none}
 
   /* --- Thread list --- */
+  .list-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 14px}
+  .list-toolbar input[type="search"]{flex:1;min-width:180px;font:13.5px var(--sans);padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card2);color:var(--ink)}
+  .sort-btns{display:flex;gap:5px;flex-wrap:wrap}
+  .sort-btn{font:600 11.5px var(--mono);padding:7px 11px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--muted);cursor:pointer}
+  .sort-btn.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
   #new-thread-form{display:flex;gap:8px;margin:10px 0 16px}
   #new-thread-form input{flex:1;font:14px var(--sans);padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card2);color:var(--ink)}
   .thread-row{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font:inherit;color:var(--ink)}
@@ -100,6 +105,19 @@
   .reply-box{margin-top:16px}
   .reply-box textarea{width:100%;font:14px var(--sans);padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card2);color:var(--ink);resize:vertical}
   .reply-box .btn{margin-top:8px}
+
+  /* --- Mobile-Feinschliff --- */
+  @media(max-width:560px){
+    .wrap{padding:18px 14px 60px}
+    .app-top{flex-wrap:wrap;gap:8px}
+    .row.between{flex-wrap:wrap;gap:8px}
+    .row.between .btn{width:100%}
+    #new-thread-form{flex-direction:column}
+    #new-thread-form .btn{width:100%}
+    .thread-row .sub{flex-direction:column;gap:2px}
+    .post-row .when{margin-left:0}
+    .post-row .ph{flex-wrap:wrap;gap:5px}
+  }
 </style>
 </head>
 <body>

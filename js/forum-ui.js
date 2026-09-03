@@ -106,6 +106,14 @@ export function renderForum(root, repo, me) {
         <input type="text" id="new-thread-title" placeholder="Deine Frage in einem Satz…" maxlength="160">
         <button type="button" class="btn" id="new-thread-save">Frage stellen</button>
       </div>
+      <div class="list-toolbar" id="list-toolbar" hidden>
+        <input type="search" id="thread-search" placeholder="🔍 Themen durchsuchen…" autocomplete="off">
+        <div class="sort-btns">
+          <button type="button" class="sort-btn on" data-sort="new">Neueste</button>
+          <button type="button" class="sort-btn" data-sort="old">Älteste</button>
+          <button type="button" class="sort-btn" data-sort="open">Offene zuerst</button>
+        </div>
+      </div>
       <div id="thread-list" class="loading">Lade Themen…</div>`;
 
     const newBtn = body.querySelector("#new-thread-btn");
@@ -121,29 +129,57 @@ export function renderForum(root, repo, me) {
       loadList();
     });
 
+    let allThreads = [];
+    let sortMode = "new";
+    let query = "";
+    const toolbar = body.querySelector("#list-toolbar");
+    const searchEl = body.querySelector("#thread-search");
+    searchEl.addEventListener("input", () => { query = searchEl.value.trim().toLowerCase(); paint(); });
+    toolbar.querySelectorAll(".sort-btn").forEach(b => b.addEventListener("click", () => {
+      sortMode = b.dataset.sort;
+      toolbar.querySelectorAll(".sort-btn").forEach(x => x.classList.toggle("on", x === b));
+      paint();
+    }));
+
+    function sortThreads(arr) {
+      const byNew = (a, b) => b.created_at.localeCompare(a.created_at);
+      if (sortMode === "old") return [...arr].sort((a, b) => a.created_at.localeCompare(b.created_at));
+      if (sortMode === "open") return [...arr].sort((a, b) => (a.solved - b.solved) || byNew(a, b));
+      return [...arr].sort(byNew);
+    }
+
+    async function paint() {
+      const list = body.querySelector("#thread-list");
+      let items = allThreads;
+      if (query) items = items.filter(t => t.title.toLowerCase().includes(query));
+      items = sortThreads(items);
+      if (!items.length) {
+        list.className = "empty";
+        list.textContent = query ? "Nichts gefunden — andere Wörter probieren." : "Noch keine Themen — sei der Erste mit „+ Neues Thema“.";
+        return;
+      }
+      const rows = await Promise.all(items.map(async t => {
+        const author = await authorInfo(repo, t.author_id);
+        return `<button type="button" class="thread-row" data-id="${t.id}">
+            <div class="tt">${t.solved ? '<span class="solved">✓ Gelöst</span> ' : ''}${esc(t.title)}</div>
+            <div class="sub"><span>von ${esc(author.name)}${roleBadge(author.role)}</span><span>${timeAgo(t.created_at)}</span></div>
+          </button>`;
+      }));
+      list.className = "";
+      list.innerHTML = rows.join("");
+      list.querySelectorAll("[data-id]").forEach(b => b.addEventListener("click", () => {
+        activeThread = allThreads.find(t => t.id === b.dataset.id);
+        route();
+      }));
+    }
+
     async function loadList() {
       const list = body.querySelector("#thread-list");
       list.className = "loading"; list.textContent = "Lade Themen…";
       try {
-        const threads = await repo.listThreads({ stufe, subject });
-        if (!threads.length) {
-          list.className = "empty";
-          list.textContent = "Noch keine Themen — sei der Erste mit „+ Neues Thema“.";
-          return;
-        }
-        const rows = await Promise.all(threads.map(async t => {
-          const author = await authorInfo(repo, t.author_id);
-          return `<button type="button" class="thread-row" data-id="${t.id}">
-              <div class="tt">${t.solved ? '<span class="solved">✓ Gelöst</span> ' : ''}${esc(t.title)}</div>
-              <div class="sub"><span>von ${esc(author.name)}${roleBadge(author.role)}</span><span>${timeAgo(t.created_at)}</span></div>
-            </button>`;
-        }));
-        list.className = "";
-        list.innerHTML = rows.join("");
-        list.querySelectorAll("[data-id]").forEach(b => b.addEventListener("click", () => {
-          activeThread = threads.find(t => t.id === b.dataset.id);
-          route();
-        }));
+        allThreads = await repo.listThreads({ stufe, subject });
+        toolbar.hidden = allThreads.length < 2; // Suche/Sortierung erst ab 2 Themen sinnvoll
+        paint();
       } catch (err) {
         list.className = "error";
         list.textContent = "Themen konnten nicht geladen werden: " + err.message;
