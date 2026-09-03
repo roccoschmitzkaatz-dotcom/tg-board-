@@ -4,6 +4,9 @@ node_modules/
 *.log
 .vscode/
 .idea/
+
+# Local frontend configuration and secrets
+js/supabase-config.js
 .env
 .env.local
 .env.*.local
