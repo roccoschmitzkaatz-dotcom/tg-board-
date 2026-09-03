@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>TG Board — Schüler-Austausch (Prototyp)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#eef1f6; --card:#ffffff; --card2:#f7f9fc; --ink:#141d2b; --muted:#5c6a82; --faint:#93a0b5;
+    --line:#e2e8f1; --accent:#4f6ef7; --accent-ink:#3a56d4; --teal:#12b3a6; --amber:#f0961e;
+    --s11:#4f6ef7; --s12:#12b3a6; --s13:#f0961e;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,monospace;
+    --shadow:0 1px 2px rgba(20,29,43,.04),0 8px 24px rgba(20,29,43,.06);
+  }
+  @media(prefers-color-scheme:dark){:root{
+    --bg:#0c1220; --card:#141d2c; --card2:#101827; --ink:#ffffff; --muted:#c2ccdb; --faint:#93a0b5;
+    --line:#233043; --accent:#5f7cff; --accent-ink:#9db0ff; --shadow:0 8px 28px rgba(0,0,0,.4);
+  }}
+  :root[data-theme=dark]{--bg:#0c1220;--card:#141d2c;--card2:#101827;--ink:#ffffff;--muted:#c2ccdb;--faint:#93a0b5;--line:#233043;--accent:#5f7cff;--accent-ink:#9db0ff;--shadow:0 8px 28px rgba(0,0,0,.4)}
+  :root[data-theme=light]{--bg:#eef1f6;--card:#fff;--card2:#f7f9fc;--ink:#141d2b;--muted:#5c6a82;--faint:#93a0b5;--line:#e2e8f1;--accent:#4f6ef7;--accent-ink:#3a56d4;--shadow:0 1px 2px rgba(20,29,43,.04),0 8px 24px rgba(20,29,43,.06)}
+  /* Eigener Umschalter (überschreibt Host-data-theme sicher, da spätere Regel) */
+  html.tgdark{--bg:#0c1220;--card:#141d2c;--card2:#101827;--ink:#ffffff;--muted:#c2ccdb;--faint:#93a0b5;--line:#233043;--accent:#5f7cff;--accent-ink:#9db0ff;--shadow:0 8px 28px rgba(0,0,0,.4)}
+  html.tglight{--bg:#eef1f6;--card:#fff;--card2:#f7f9fc;--ink:#141d2b;--muted:#5c6a82;--faint:#93a0b5;--line:#e2e8f1;--accent:#4f6ef7;--accent-ink:#3a56d4;--shadow:0 1px 2px rgba(20,29,43,.04),0 8px 24px rgba(20,29,43,.06)}
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased}
+  button{font-family:inherit;cursor:pointer}
+  .wrap{max-width:920px;margin:0 auto;padding:0 16px 60px}
+
+  /* top bar */
+  header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 82%,transparent);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .top{max-width:920px;margin:0 auto;display:flex;align-items:center;gap:14px;padding:12px 16px}
+  .logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:17px;letter-spacing:-.01em}
+  .logo .mk{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--teal));
+    display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--mono);font-weight:700;font-size:14px}
+  .logo small{color:var(--muted);font-weight:500;font-size:11px;font-family:var(--mono);letter-spacing:.02em}
+  nav{margin-left:auto;display:flex;gap:4px}
+  nav button{background:none;border:none;color:var(--muted);font-size:13.5px;font-weight:600;padding:8px 12px;border-radius:8px}
+  nav button:hover{color:var(--ink);background:var(--card2)}
+  nav button.on{color:var(--accent-ink);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+  .themebtn{margin-left:6px;background:var(--card);border:1px solid var(--line);color:var(--muted);
+    width:34px;height:34px;border-radius:9px;font-size:15px;display:flex;align-items:center;justify-content:center;flex:none}
+  .themebtn:hover{color:var(--ink)}
+  .me-chip{display:flex;align-items:center;gap:7px;padding:5px 10px 5px 6px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:12.5px;font-weight:600}
+  .av{width:24px;height:24px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none}
+
+  h1{font-size:26px;margin:26px 0 4px;letter-spacing:-.02em;text-wrap:balance}
+  .lead{color:var(--muted);margin:0 0 22px;font-size:15px}
+  .crumb{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);margin:22px 0 14px;flex-wrap:wrap}
+  .crumb a{color:var(--accent-ink);cursor:pointer;text-decoration:none;font-weight:600}
+  .crumb span{color:var(--faint)}
+
+  .grid{display:grid;gap:14px}
+  .g3{grid-template-columns:repeat(3,1fr)} .g2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:620px){.g3,.g2{grid-template-columns:1fr}}
+
+  .stufe{position:relative;border:1px solid var(--line);border-radius:16px;padding:22px 20px;background:var(--card);
+    box-shadow:var(--shadow);text-align:left;overflow:hidden;transition:transform .12s,border-color .15s}
+  .stufe:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--sc) 50%,var(--line))}
+  .stufe .rail{position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--sc)}
+  .stufe .big{font-family:var(--mono);font-size:40px;font-weight:800;line-height:1;color:var(--sc)}
+  .stufe .lbl{font-weight:700;font-size:16px;margin:8px 0 3px}
+  .stufe .meta{color:var(--muted);font-size:13px}
+
+  .subj{display:flex;align-items:center;gap:13px;border:1px solid var(--line);border-radius:12px;padding:14px 15px;
+    background:var(--card);box-shadow:var(--shadow);text-align:left;width:100%;transition:transform .1s,border-color .15s}
+  .subj:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+  .subj .ic{width:38px;height:38px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-weight:700;font-size:15px;color:#fff}
+  .subj .nm{font-weight:650;font-size:15px}
+  .subj .ct{color:var(--muted);font-size:12.5px}
+  .subj .arw{margin-left:auto;color:var(--faint);font-size:18px}
+
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 16px;font-weight:650;font-size:14px;
+    box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 35%,transparent);transition:filter .15s,transform .1s}
+  .btn:hover{filter:brightness(1.05)} .btn:active{transform:translateY(1px)}
+  .btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line);box-shadow:none}
+  .btn:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+
+  .row{display:flex;align-items:center;gap:12px}
+  .between{justify-content:space-between}
+
+  .thread{display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+    background:var(--card);box-shadow:var(--shadow);transition:border-color .15s,transform .1s;margin-bottom:10px}
+  .thread:hover{border-color:color-mix(in srgb,var(--accent) 40%,var(--line));transform:translateY(-1px)}
+  .thread .tt{font-weight:650;font-size:15.5px;margin-bottom:3px}
+  .thread .sub{color:var(--muted);font-size:12.5px;display:flex;gap:10px;flex-wrap:wrap}
+
+  .post{border:1px solid var(--line);border-radius:12px;padding:13px 15px;background:var(--card);margin-bottom:10px}
+  .post .ph{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+  .post .who{font-weight:650;font-size:13.5px} .post .when{color:var(--faint);font-size:11.5px;font-family:var(--mono)}
+  .poster{display:flex;align-items:center;gap:9px;background:none;border:none;padding:3px 6px;margin:-3px -6px;border-radius:8px}
+  .poster.clk{cursor:pointer} .poster.clk:hover{background:var(--card2)}
+  .poster.clk:hover .who{color:var(--accent-ink)}
+  .poster .msgtag{font-size:11px;color:var(--accent-ink);font-weight:600;opacity:0;transition:opacity .12s}
+  .poster.clk:hover .msgtag{opacity:1}
+  .post .bd{font-size:14.5px;white-space:pre-wrap;word-break:break-word}
+
+  textarea,input{font-family:inherit;font-size:14.5px;color:var(--ink);background:var(--card2);
+    border:1px solid var(--line);border-radius:10px;padding:11px 13px;width:100%;resize:vertical}
+  textarea:focus,input:focus{outline:none;border-color:var(--accent)}
+  label{font-size:12px;font-weight:600;color:var(--muted);display:block;margin:0 0 6px;letter-spacing:.02em}
+
+  .empty{text-align:center;color:var(--muted);padding:34px 16px;border:1px dashed var(--line);border-radius:14px;background:var(--card2)}
+  .searchbar{position:relative;margin:0 0 20px}
+  .searchbar input{padding-left:38px}
+  .searchbar .si{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:15px}
+  .sechead{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:26px 0 12px;display:flex;align-items:center;gap:8px}
+  .pin{display:flex;gap:12px;border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:12px;padding:13px 15px;background:var(--card);margin-bottom:10px;box-shadow:var(--shadow)}
+  .pin .pi{font-size:17px;flex:none}
+  .pin .tx{font-size:14px} .pin .mt{color:var(--muted);font-size:12px;margin-top:3px}
+  .tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--accent-ink);
+    background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:6px;padding:2px 8px}
+  .solved{color:#fff;background:#22c55e;border-radius:6px;font-size:11px;font-weight:700;padding:2px 8px}
+  .likebtn{display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--line);border-radius:8px;
+    padding:5px 11px;color:var(--muted);font-size:12.5px;font-weight:600;margin-top:8px}
+  .likebtn:hover{border-color:var(--accent);color:var(--accent-ink)} .likebtn.on{color:var(--accent-ink);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+
+  /* DMs */
+  .dm{display:grid;grid-template-columns:210px 1fr;gap:14px;min-height:400px}
+  @media(max-width:620px){.dm{grid-template-columns:1fr} .dm.chatting .dmlist{display:none}}
+  .dmlist{border:1px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden;box-shadow:var(--shadow)}
+  .contact{display:flex;align-items:center;gap:10px;padding:11px 13px;border:none;background:none;width:100%;text-align:left;border-bottom:1px solid var(--line)}
+  .contact:hover{background:var(--card2)} .contact.on{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+  .contact .nm{font-weight:600;font-size:13.5px} .contact .lm{color:var(--faint);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+  .chat{border:1px solid var(--line);border-radius:14px;background:var(--card);display:flex;flex-direction:column;box-shadow:var(--shadow);overflow:hidden}
+  .chat .ch{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--card2)}
+  .msgs{flex:1;padding:14px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:360px}
+  .bubble{max-width:74%;padding:8px 12px;border-radius:14px;font-size:14px;line-height:1.4}
+  .bubble.them{align-self:flex-start;background:var(--card2);border:1px solid var(--line);border-bottom-left-radius:4px}
+  .bubble.me{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+  .composer{display:flex;gap:8px;padding:11px;border-top:1px solid var(--line)}
+  .composer input{flex:1}
+
+  .note{font-size:12.5px;color:var(--muted);background:var(--card2);border:1px solid var(--line);border-left:3px solid var(--amber);
+    border-radius:8px;padding:10px 13px;margin:18px 0}
+  .colors{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .colors button{width:30px;height:30px;border-radius:50%;border:2px solid transparent}
+  .colors button.on{border-color:var(--ink)}
+</style>
+
+</head>
+<body>
+<header>
+  <div class="top">
+    <div class="logo"><span class="mk">TG</span><div>TG&nbsp;Board <br><small>Schüler-Austausch · Technisches Gymnasium</small></div></div>
+    <nav id="nav"></nav>
+    <button class="themebtn" id="themeBtn" title="Hell / Dunkel umschalten" aria-label="Theme umschalten">☾</button>
+  </div>
+</header>
+
+<div class="wrap" id="app"></div>
+
+<script>
+(function(){
+  "use strict";
+  var LS='tgboard_v1', THKEY='tgboard_theme';
+  var COLORS=['#4f6ef7','#12b3a6','#f0961e','#e8556f','#8b5cf6','#0ea5e9','#22c55e','#ef4444'];
+
+  // ---- Theme (Hell/Dunkel) — eigener Umschalter via html-Klasse ----
+  function applyTheme(t){var r=document.documentElement;r.classList.remove('tgdark','tglight');
+    r.classList.add(t==='dark'?'tgdark':'tglight');localStorage.setItem(THKEY,t);setThemeIcon();}
+  function curTheme(){var r=document.documentElement;
+    if(r.classList.contains('tgdark'))return'dark'; if(r.classList.contains('tglight'))return'light';
+    var dt=r.getAttribute('data-theme'); if(dt)return dt;
+    return matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}
+  function toggleTheme(){applyTheme(curTheme()==='dark'?'light':'dark');}
+  function setThemeIcon(){var b=document.getElementById('themeBtn'); if(b)b.textContent=curTheme()==='dark'?'☀︎':'☾';}
+  (function(){var t=localStorage.getItem(THKEY); if(t)document.documentElement.classList.add(t==='dark'?'tgdark':'tglight');})();
+  document.getElementById('themeBtn').onclick=toggleTheme; setThemeIcon();
+  var SUBJECTS=[
+    {id:'mathe',n:'Mathematik',c:'#4f6ef7'},
+    {id:'physik',n:'Physik',c:'#0ea5e9'},
+    {id:'info',n:'Informatik',c:'#8b5cf6'},
+    {id:'technik',n:'Technik (Profil)',c:'#f0961e'},
+    {id:'chemie',n:'Chemie',c:'#22c55e'},
+    {id:'deutsch',n:'Deutsch',c:'#e8556f'},
+    {id:'englisch',n:'Englisch',c:'#12b3a6'},
+    {id:'gk',n:'Gemeinschaftskunde',c:'#ef4444'},
+    {id:'geschichte',n:'Geschichte',c:'#a16207'},
+    {id:'ethik',n:'Ethik / Religion',c:'#6366f1'}
+  ];
+  var STUFEN=[{s:'11',c:'var(--s11)',hx:'#4f6ef7'},{s:'12',c:'var(--s12)',hx:'#12b3a6'},{s:'13',c:'var(--s13)',hx:'#f0961e'}];
+
+  var DEFAULT_CONTACTS=[{n:'Max',c:'#f0961e'},{n:'Vincent',c:'#0ea5e9'},{n:'Moritz',c:'#e8556f'},{n:'Lena K.',c:'#12b3a6'},{n:'Tom',c:'#8b5cf6'}];
+  var DB=load();
+  function load(){
+    try{var d=JSON.parse(localStorage.getItem(LS)); if(d){ if(!d.contacts)d.contacts=DEFAULT_CONTACTS.slice(); if(!d.announce)d.announce=defaultAnnounce(); return d; }}catch(e){}
+    return seed();
+  }
+  function save(){ try{localStorage.setItem(LS,JSON.stringify(DB));}catch(e){} }
+  function defaultAnnounce(){var now=Date.now();return [
+    {stufe:'11',subj:'mathe',by:'Hr. Berger (Lehrer)',t:now-172800000,tx:'Klausur Analysis am 15.09. — Themen: Ableitungsregeln + Kurvendiskussion.'},
+    {stufe:'12',subj:'info',by:'Fr. Wagner (Lehrerin)',t:now-86400000,tx:'Projektabgabe „Datenbank" bis Freitag hochladen. Gruppen bitte eintragen.'}
+  ];}
+  function seed(){
+    var now=Date.now();
+    return {
+      user:null,
+      contacts:DEFAULT_CONTACTS.slice(),
+      announce:defaultAnnounce(),
+      threads:{
+        '11/mathe':[
+          {id:1,tt:'Ableitungen — Kettenregel Übung 3b?',by:'Lena K.',c:'#12b3a6',t:now-7200000,
+           posts:[{by:'Lena K.',c:'#12b3a6',t:now-7200000,bd:'Hat jemand 3b raus? Ich komm auf f\'(x)=... aber bin unsicher bei der inneren Ableitung.'},
+                  {by:'Max',c:'#f0961e',t:now-5400000,bd:'Innere Ableitung nicht vergessen — dann passt es. Ich schick dir gleich meinen Rechenweg.'}]},
+          {id:2,tt:'Klausur nächste Woche — was kommt dran?',by:'Tom',c:'#8b5cf6',t:now-90000000,posts:[{by:'Tom',c:'#8b5cf6',t:now-90000000,bd:'Weiß jemand ob Trigonometrie mit reinkommt?'}]}
+        ],
+        '12/info':[
+          {id:3,tt:'Python: Schleife bricht zu früh ab',by:'Vincent',c:'#0ea5e9',t:now-3600000,
+           posts:[{by:'Vincent',c:'#0ea5e9',t:now-3600000,bd:'Meine while-Schleife läuft nur einmal durch. Hat jemand nen Tipp?'},
+                  {by:'Moritz',c:'#e8556f',t:now-1800000,bd:'Klingt nach Einrückung oder die Bedingung wird zu früh False. Poll mal den Code.'}]}
+        ]
+      },
+      dms:{}
+    };
+  }
+
+  var route={v:'home'}; // home | stufen | subjects | threads | thread | dms | profile
+  var app=document.getElementById('app'), nav=document.getElementById('nav');
+
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function initials(n){return n.trim().split(/\s+/).map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();}
+  function ago(t){var d=(Date.now()-t)/1000;if(d<60)return'gerade';if(d<3600)return Math.floor(d/60)+' Min';if(d<86400)return Math.floor(d/3600)+' Std';return Math.floor(d/86400)+' Tg';}
+  function subj(id){for(var i=0;i<SUBJECTS.length;i++)if(SUBJECTS[i].id===id)return SUBJECTS[i];return{n:id,c:'#4f6ef7'};}
+
+  function renderNav(){
+    if(!DB.user){nav.innerHTML='';return;}
+    var tabs=[['home','Start'],['stufen','Foren'],['dms','Nachrichten'],['profile','Profil']];
+    nav.innerHTML=tabs.map(function(t){
+      var on=(route.v===t[0]||(t[0]==='stufen'&&['subjects','threads','thread'].indexOf(route.v)>=0));
+      return '<button class="'+(on?'on':'')+'" data-tab="'+t[0]+'">'+t[1]+'</button>';
+    }).join('')+
+    '<span class="me-chip"><span class="av" style="background:'+DB.user.c+'">'+initials(DB.user.n)+'</span>'+esc(DB.user.n.split(' ')[0])+'</span>';
+    nav.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){route={v:b.dataset.tab};render();};});
+  }
+
+  function render(){
+    renderNav();
+    if(!DB.user){return renderOnboard();}
+    if(route.v==='home')return renderHome();
+    if(route.v==='stufen')return renderStufen();
+    if(route.v==='subjects')return renderSubjects();
+    if(route.v==='threads')return renderThreads();
+    if(route.v==='thread')return renderThread();
+    if(route.v==='dms')return renderDMs();
+    if(route.v==='profile')return renderProfile();
+  }
+
+  function renderOnboard(){
+    app.innerHTML=
+      '<h1 style="margin-top:60px">Willkommen beim TG Board 👋</h1>'+
+      '<p class="lead">Der Ort, an dem sich Schüler des Technischen Gymnasiums stufenweise über die Fächer austauschen. Wähl einen Namen, dann geht\'s los.</p>'+
+      '<div style="max-width:360px"><label>Dein Anzeigename</label>'+
+      '<input id="nm" placeholder="z. B. Rocco F." maxlength="24">'+
+      '<label style="margin-top:14px">Farbe</label><div class="colors" id="cols"></div>'+
+      '<button class="btn" id="go" style="margin-top:18px;width:100%">Los geht\'s →</button></div>'+
+      '<div class="note">Prototyp: Alles läuft lokal in deinem Browser (kein echter Server, keine Daten werden übertragen). Zum Zeigen, wie die Plattform funktionieren würde.</div>';
+    var chosen=COLORS[0];
+    var cols=document.getElementById('cols');
+    cols.innerHTML=COLORS.map(function(c,i){return '<button style="background:'+c+'" class="'+(i===0?'on':'')+'" data-c="'+c+'"></button>';}).join('');
+    cols.querySelectorAll('[data-c]').forEach(function(b){b.onclick=function(){chosen=b.dataset.c;cols.querySelectorAll('button').forEach(function(x){x.classList.remove('on');});b.classList.add('on');};});
+    function go(){var n=document.getElementById('nm').value.trim();if(!n){document.getElementById('nm').focus();return;}
+      DB.user={n:n,c:chosen};save();route={v:'home'};render();}
+    document.getElementById('go').onclick=go;
+    document.getElementById('nm').onkeydown=function(e){if(e.key==='Enter')go();};
+  }
+
+  function allThreads(){
+    var out=[];
+    for(var k in DB.threads){var p=k.split('/');
+      DB.threads[k].forEach(function(t){out.push({stufe:p[0],subj:p[1],t:t});});}
+    out.sort(function(a,b){return b.t.posts[b.t.posts.length-1].t - a.t.posts[a.t.posts.length-1].t;});
+    return out;
+  }
+  function threadRow(x){
+    var sj=subj(x.subj), lp=x.t.posts[x.t.posts.length-1];
+    return '<button class="thread" data-open=\''+JSON.stringify({v:'thread',s:x.stufe,subj:x.subj,id:x.t.id})+'\'>'+
+      '<div class="tt">'+(x.t.solved?'<span class="solved">✓ Gelöst</span> ':'')+esc(x.t.tt)+'</div>'+
+      '<div class="sub"><span class="tag" style="color:'+sj.c+';background:'+sj.c+'22">'+esc(sj.n)+' · St.'+x.stufe+'</span>'+
+      '<span>'+x.t.posts.length+' Beiträge</span><span>'+ago(lp.t)+'</span></div></button>';
+  }
+  function bindOpen(){app.querySelectorAll('[data-open]').forEach(function(b){b.onclick=function(){route=JSON.parse(b.dataset.open);render();};});}
+
+  function renderHome(){
+    app.innerHTML='<h1>Hallo '+esc(DB.user.n.split(' ')[0])+' 👋</h1>'+
+      '<p class="lead">Was läuft gerade an deiner Schule?</p>'+
+      '<div class="searchbar"><span class="si">🔍</span><input id="q" placeholder="Themen &amp; Beiträge durchsuchen…" autocomplete="off"></div>'+
+      '<div id="results"></div>';
+    var q=document.getElementById('q'), res=document.getElementById('results');
+    function paintDefault(){
+      var ann=DB.announce.slice().sort(function(a,b){return b.t-a.t;});
+      var feed=allThreads().slice(0,8);
+      res.innerHTML=
+        '<div class="sechead">📌 Pinnwand — Lehrer-Ankündigungen</div>'+
+        (ann.length?ann.map(function(a){var sj=subj(a.subj);
+          return '<div class="pin"><span class="pi">📌</span><div><div class="tx">'+esc(a.tx)+'</div>'+
+            '<div class="mt">'+esc(a.by)+' · '+sj.n+' · Stufe '+a.stufe+' · '+ago(a.t)+'</div></div></div>';}).join('')
+          :'<div class="empty">Keine Ankündigungen.</div>')+
+        '<div class="sechead">🕒 Neueste Beiträge</div>'+
+        (feed.length?feed.map(threadRow).join(''):'<div class="empty">Noch keine Beiträge — schau in die Foren.</div>');
+      bindOpen();
+    }
+    function paintSearch(term){
+      term=term.toLowerCase();
+      var hits=allThreads().filter(function(x){
+        if(x.t.tt.toLowerCase().indexOf(term)>=0)return true;
+        return x.t.posts.some(function(p){return p.bd.toLowerCase().indexOf(term)>=0;});
+      });
+      res.innerHTML='<div class="sechead">🔍 '+hits.length+' Treffer für „'+esc(term)+'"</div>'+
+        (hits.length?hits.map(threadRow).join(''):'<div class="empty">Nichts gefunden. Andere Wörter probieren.</div>');
+      bindOpen();
+    }
+    q.oninput=function(){var v=q.value.trim(); if(v.length>=2)paintSearch(v); else paintDefault();};
+    paintDefault();
+  }
+
+  function renderStufen(){
+    app.innerHTML='<h1>Deine Stufe wählen</h1><p class="lead">Jede Stufe hat ihre eigenen Fach-Foren. Tausch dich mit deinem Jahrgang aus.</p><div class="grid g3" id="st"></div>';
+    var box=document.getElementById('st');
+    box.innerHTML=STUFEN.map(function(x){
+      var count=countStufe(x.s);
+      return '<button class="stufe" style="--sc:'+x.hx+'" data-s="'+x.s+'"><span class="rail"></span>'+
+        '<div class="big">'+x.s+'</div><div class="lbl">Stufe '+x.s+'</div>'+
+        '<div class="meta">'+SUBJECTS.length+' Fächer · '+count+' Beiträge</div></button>';
+    }).join('');
+    box.querySelectorAll('[data-s]').forEach(function(b){b.onclick=function(){route={v:'subjects',s:b.dataset.s};render();};});
+  }
+  function countStufe(s){var n=0;for(var k in DB.threads){if(k.indexOf(s+'/')===0)DB.threads[k].forEach(function(t){n+=t.posts.length;});}return n;}
+
+  function crumb(parts){
+    return '<div class="crumb">'+parts.map(function(p,i){
+      return i<parts.length-1 ? '<a data-go=\''+JSON.stringify(p.r)+'\'>'+esc(p.t)+'</a><span>›</span>' : esc(p.t);
+    }).join('')+'</div>';
+  }
+  function bindCrumb(){app.querySelectorAll('[data-go]').forEach(function(a){a.onclick=function(){route=JSON.parse(a.dataset.go);render();};});}
+
+  function renderSubjects(){
+    app.innerHTML=crumb([{t:'Foren',r:{v:'stufen'}},{t:'Stufe '+route.s}])+
+      '<h1>Stufe '+route.s+' — Fächer</h1><p class="lead">Wähl ein Fach, um die Foren zu sehen.</p><div class="grid g2" id="sj"></div>';
+    bindCrumb();
+    var box=document.getElementById('sj');
+    box.innerHTML=SUBJECTS.map(function(s){
+      var key=route.s+'/'+s.id, thr=(DB.threads[key]||[]).length;
+      return '<button class="subj" data-id="'+s.id+'"><span class="ic" style="background:'+s.c+'">'+s.n.slice(0,2)+'</span>'+
+        '<span><span class="nm">'+s.n+'</span><br><span class="ct">'+thr+' Themen</span></span><span class="arw">›</span></button>';
+    }).join('');
+    box.querySelectorAll('[data-id]').forEach(function(b){b.onclick=function(){route={v:'threads',s:route.s,subj:b.dataset.id};render();};});
+  }
+
+  function renderThreads(){
+    var key=route.s+'/'+route.subj, list=DB.threads[key]||[], sj=subj(route.subj);
+    var ann=DB.announce.filter(function(a){return a.stufe===route.s&&a.subj===route.subj;});
+    app.innerHTML=crumb([{t:'Foren',r:{v:'stufen'}},{t:'Stufe '+route.s,r:{v:'subjects',s:route.s}},{t:sj.n}])+
+      '<div class="row between"><h1 style="margin-bottom:0">'+esc(sj.n)+' · Stufe '+route.s+'</h1>'+
+      '<div class="row"><button class="btn ghost" id="ann">📌 Ankündigung</button><button class="btn" id="new">+ Neues Thema</button></div></div>'+
+      '<p class="lead">Fragen, Klausuren, Hausaufgaben — tausch dich mit der Stufe aus.</p>'+
+      (ann.length?'<div style="margin-bottom:14px">'+ann.map(function(a){return '<div class="pin"><span class="pi">📌</span><div><div class="tx">'+esc(a.tx)+'</div><div class="mt">'+esc(a.by)+' · '+ago(a.t)+'</div></div></div>';}).join('')+'</div>':'')+
+      '<div id="tl"></div>';
+    bindCrumb();
+    var tl=document.getElementById('tl');
+    if(!list.length){tl.innerHTML='<div class="empty">Noch keine Themen. Sei der Erste — <b>+ Neues Thema</b>.</div>';}
+    else{tl.innerHTML=list.slice().reverse().map(function(t){
+      return '<button class="thread" data-id="'+t.id+'"><div class="tt">'+(t.solved?'<span class="solved">✓ Gelöst</span> ':'')+esc(t.tt)+'</div>'+
+        '<div class="sub"><span>von '+esc(t.by)+'</span><span>'+t.posts.length+' Beiträge</span><span>'+ago(t.posts[t.posts.length-1].t)+'</span></div></button>';
+    }).join('');}
+    tl.querySelectorAll('[data-id]').forEach(function(b){b.onclick=function(){route={v:'thread',s:route.s,subj:route.subj,id:+b.dataset.id};render();};});
+    document.getElementById('new').onclick=function(){newThread(key);};
+    document.getElementById('ann').onclick=function(){
+      var tx=prompt('Ankündigung (z. B. „Klausur am …", „Hausaufgabe bis …"):'); if(!tx||!tx.trim())return;
+      DB.announce.push({stufe:route.s,subj:route.subj,by:DB.user.n,t:Date.now(),tx:tx.trim()});save();render();
+    };
+  }
+
+  function newThread(key){
+    var tt=prompt('Titel des neuen Themas:'); if(!tt||!tt.trim())return;
+    var first=prompt('Deine erste Nachricht:')||'';
+    DB.threads[key]=DB.threads[key]||[];
+    var id=Date.now();
+    DB.threads[key].push({id:id,tt:tt.trim(),by:DB.user.n,c:DB.user.c,t:Date.now(),
+      posts:[{by:DB.user.n,c:DB.user.c,t:Date.now(),bd:first.trim()||tt.trim()}]});
+    save();route={v:'thread',s:route.s,subj:route.subj,id:id};render();
+  }
+
+  function renderThread(){
+    var key=route.s+'/'+route.subj, list=DB.threads[key]||[], t=null;
+    for(var i=0;i<list.length;i++)if(list[i].id===route.id)t=list[i];
+    if(!t){route={v:'threads',s:route.s,subj:route.subj};return render();}
+    var sj=subj(route.subj);
+    app.innerHTML=crumb([{t:'Foren',r:{v:'stufen'}},{t:'Stufe '+route.s,r:{v:'subjects',s:route.s}},{t:sj.n,r:{v:'threads',s:route.s,subj:route.subj}},{t:'Thema'}])+
+      '<div class="row between" style="gap:12px;align-items:flex-start"><h1 style="font-size:22px;margin-bottom:0">'+(t.solved?'<span class="solved">✓ Gelöst</span> ':'')+esc(t.tt)+'</h1>'+
+      '<button class="btn ghost" id="solve" style="flex:none">'+(t.solved?'✓ Gelöst':'Als gelöst markieren')+'</button></div>'+
+      '<div id="posts" style="margin-top:16px"></div>'+
+      '<div style="margin-top:8px"><label>Antworten</label><textarea id="rep" rows="3" placeholder="Schreib deine Antwort…"></textarea>'+
+      '<div style="margin-top:8px"><button class="btn" id="send">Antwort senden</button></div></div>';
+    bindCrumb();
+    document.getElementById('posts').innerHTML=t.posts.map(function(p,idx){
+      var self=(p.by===DB.user.n);
+      var head='<span class="poster'+(self?'':' clk')+'"'+(self?'':' data-u="'+esc(p.by)+'" data-c="'+p.c+'"')+'>'+
+        '<span class="av" style="background:'+p.c+'">'+initials(p.by)+'</span>'+
+        '<span class="who">'+esc(p.by)+(self?' <span style="color:var(--faint);font-weight:500">(du)</span>':'')+'</span>'+
+        (self?'':'<span class="msgtag">✉ schreiben</span>')+'</span>';
+      return '<div class="post"><div class="ph">'+head+'<span class="when" style="margin-left:auto">'+ago(p.t)+'</span></div>'+
+        '<div class="bd">'+esc(p.bd)+'</div>'+
+        '<button class="likebtn'+(p.likedByMe?' on':'')+'" data-pi="'+idx+'">👍 Hilfreich'+(p.likes?' · '+p.likes:'')+'</button></div>';
+    }).join('');
+    document.querySelectorAll('.poster.clk').forEach(function(b){b.onclick=function(){openChatWith(b.dataset.u,b.dataset.c);};});
+    document.querySelectorAll('.likebtn').forEach(function(b){b.onclick=function(){
+      var p=t.posts[+b.dataset.pi]; p.likes=p.likes||0;
+      if(p.likedByMe){p.likes--;p.likedByMe=false;}else{p.likes++;p.likedByMe=true;}
+      save();render();
+    };});
+    document.getElementById('solve').onclick=function(){t.solved=!t.solved;save();render();};
+    document.getElementById('send').onclick=function(){
+      var v=document.getElementById('rep').value.trim(); if(!v)return;
+      t.posts.push({by:DB.user.n,c:DB.user.c,t:Date.now(),bd:v});save();render();
+      setTimeout(function(){window.scrollTo(0,document.body.scrollHeight);},30);
+    };
+  }
+
+  // ---------- DMs ----------
+  function openChatWith(name,color){
+    if(!name||name===DB.user.n)return;
+    if(!DB.contacts.some(function(k){return k.n===name;})){ DB.contacts.push({n:name,c:color||COLORS[0]}); save(); }
+    route={v:'dms',c:name}; render();
+  }
+  function addContact(){
+    var n=prompt('Name der Person, die du hinzufügen willst:'); if(!n||!n.trim())return; n=n.trim();
+    if(DB.contacts.some(function(k){return k.n.toLowerCase()===n.toLowerCase();})){ alert('„'+n+'" ist schon in deiner Liste.'); route={v:'dms',c:n}; return render(); }
+    DB.contacts.push({n:n,c:COLORS[Math.floor(Math.random()*COLORS.length)]}); save();
+    route={v:'dms',c:n}; render();
+  }
+  function renderDMs(){
+    var openC=route.c||null;
+    app.innerHTML='<div class="row between"><h1 style="margin-bottom:0">Nachrichten</h1><button class="btn" id="addc">+ Person hinzufügen</button></div>'+
+      '<p class="lead">Schreib anderen Schülern direkt — oder füg neue Kontakte hinzu.</p>'+
+      '<div class="dm'+(openC?' chatting':'')+'"><div class="dmlist" id="cl"></div><div id="chatbox"></div></div>';
+    document.getElementById('addc').onclick=addContact;
+    var cl=document.getElementById('cl');
+    cl.innerHTML=DB.contacts.map(function(k){
+      var arr=DB.dms[k.n]||[], last=arr.length?arr[arr.length-1].bd:'Noch keine Nachricht';
+      return '<button class="contact'+(openC===k.n?' on':'')+'" data-n="'+k.n+'"><span class="av" style="background:'+k.c+'">'+initials(k.n)+'</span>'+
+        '<span style="min-width:0"><span class="nm">'+esc(k.n)+'</span><br><span class="lm">'+esc(last)+'</span></span></button>';
+    }).join('');
+    cl.querySelectorAll('[data-n]').forEach(function(b){b.onclick=function(){route={v:'dms',c:b.dataset.n};render();};});
+    var cb=document.getElementById('chatbox');
+    if(!openC){cb.innerHTML='<div class="empty" style="height:100%;display:flex;align-items:center;justify-content:center">Wähl links einen Kontakt — oder füg oben eine neue Person hinzu.</div>';return;}
+    var who=null;DB.contacts.forEach(function(k){if(k.n===openC)who=k;});
+    if(!who){who={n:openC,c:'#4f6ef7'};}
+    var arr=DB.dms[openC]||[];
+    cb.innerHTML='<div class="chat"><div class="ch"><span class="av" style="background:'+who.c+'">'+initials(who.n)+'</span><b style="font-size:14px">'+esc(who.n)+'</b>'+
+      '<button class="btn ghost" style="margin-left:auto;padding:5px 10px;font-size:12px" id="bk">← zurück</button></div>'+
+      '<div class="msgs" id="ms"></div>'+
+      '<div class="composer"><input id="mi" placeholder="Nachricht…" autocomplete="off"><button class="btn" id="ms-send">→</button></div></div>';
+    function paint(){var ms=document.getElementById('ms');
+      ms.innerHTML=(DB.dms[openC]||[]).map(function(m){return '<div class="bubble '+(m.me?'me':'them')+'">'+esc(m.bd)+'</div>';}).join('')
+        || '<div style="color:var(--faint);font-size:13px;text-align:center;margin:auto">Sag Hallo 👋</div>';
+      ms.scrollTop=ms.scrollHeight;}
+    paint();
+    document.getElementById('bk').onclick=function(){route={v:'dms'};render();};
+    function send(){var i=document.getElementById('mi');var v=i.value.trim();if(!v)return;
+      DB.dms[openC]=DB.dms[openC]||[];DB.dms[openC].push({me:true,bd:v,t:Date.now()});i.value='';save();paint();
+      setTimeout(function(){DB.dms[openC].push({me:false,bd:autoReply(v),t:Date.now()});save();paint();},900+Math.random()*800);
+    }
+    document.getElementById('ms-send').onclick=send;
+    document.getElementById('mi').onkeydown=function(e){if(e.key==='Enter')send();};
+  }
+  function autoReply(v){var r=['Ah okay, danke!','Ja hab ich auch — schick ich dir gleich.','Kein Plan ehrlich 😅 frag mal im Forum.','Passt, bis morgen in der Schule!','Warte, ich schau nach.'];return r[Math.floor(Math.random()*r.length)];}
+
+  // ---------- Profile ----------
+  function renderProfile(){
+    app.innerHTML='<h1>Profil</h1><p class="lead">Dein Account — Name und Farbe kannst du jederzeit ändern.</p>'+
+      '<div style="max-width:380px">'+
+      '<div class="row" style="margin-bottom:18px"><span class="av" style="width:54px;height:54px;font-size:20px;background:'+DB.user.c+'">'+initials(DB.user.n)+'</span>'+
+      '<div><div style="font-weight:700;font-size:17px">'+esc(DB.user.n)+'</div><div style="color:var(--muted);font-size:13px">Schüler · TG</div></div></div>'+
+      '<label>Anzeigename</label><input id="pn" value="'+esc(DB.user.n)+'" maxlength="24">'+
+      '<label style="margin-top:14px">Farbe</label><div class="colors" id="pc"></div>'+
+      '<div class="row" style="margin-top:20px;gap:10px"><button class="btn" id="psave">Speichern</button>'+
+      '<button class="btn ghost" id="reset">Alles zurücksetzen</button></div></div>'+
+      '<div class="note">Prototyp-Hinweis: Für die echte Version (viele Schüler, echte Logins) würde man ein fertiges Login-/Datenbank-System wie Supabase oder Firebase nutzen — dann sind Accounts + Beiträge für alle sichtbar und gespeichert.</div>';
+    var chosen=DB.user.c, pc=document.getElementById('pc');
+    pc.innerHTML=COLORS.map(function(c){return '<button style="background:'+c+'" class="'+(c===chosen?'on':'')+'" data-c="'+c+'"></button>';}).join('');
+    pc.querySelectorAll('[data-c]').forEach(function(b){b.onclick=function(){chosen=b.dataset.c;pc.querySelectorAll('button').forEach(function(x){x.classList.remove('on');});b.classList.add('on');};});
+    document.getElementById('psave').onclick=function(){var n=document.getElementById('pn').value.trim();if(n)DB.user.n=n;DB.user.c=chosen;save();render();};
+    document.getElementById('reset').onclick=function(){if(confirm('Alles zurücksetzen (Account + Beiträge)?')){localStorage.removeItem(LS);DB=seed();route={v:'stufen'};render();}};
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
