@@ -76,7 +76,7 @@ export function renderForum(root, repo, me) {
   function renderStufen() {
     body.innerHTML = `<h2>Deine Stufe wählen</h2>
       <div class="grid g3">
-        ${STUFEN.map(s => `<button type="button" class="stufe-card" data-s="${s}">
+        ${STUFEN.map(s => `<button type="button" class="stufe-card" data-s="${s}" style="--sc:var(--s${s})">
             <div class="big">${s}</div><div class="lbl">Stufe ${s}</div>
           </button>`).join("")}
       </div>`;

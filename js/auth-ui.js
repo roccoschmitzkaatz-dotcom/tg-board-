@@ -8,6 +8,7 @@ export function renderAuthScreen(root, repo, onLoggedIn) {
     <div class="auth-wrap">
       <div class="auth-card">
         <div class="auth-brand"><span class="mk">TG</span> TG&nbsp;Board</div>
+        <div class="auth-sub">Der Treffpunkt für deine Stufe — Fragen stellen, gemeinsam lösen.</div>
         <div class="auth-tabs">
           <button type="button" class="auth-tab on" data-mode="signin">Anmelden</button>
           <button type="button" class="auth-tab" data-mode="signup">Registrieren</button>
