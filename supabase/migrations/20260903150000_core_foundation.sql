@@ -4,119 +4,97 @@ create schema if not exists app_private;
 revoke all on schema app_private from public, anon, authenticated;
 grant usage on schema app_private to authenticated;
 
-create type public.app_role as enum (
-    'student',
-    'teacher',
-    'moderator',
-    'admin'
-);
-
-create table public.grades (
-    id smallint primary key,
-    code varchar(20) not null unique,
-    name varchar(80) not null,
-    sort_order smallint not null,
-    is_active boolean not null default true,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
-    constraint grades_code_not_blank check (btrim(code) <> ''),
-    constraint grades_name_not_blank check (btrim(name) <> '')
-);
-
-create table public.subjects (
-    id uuid primary key default gen_random_uuid(),
-    slug varchar(50) not null unique,
-    name varchar(100) not null,
-    color varchar(7) not null,
-    is_active boolean not null default true,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
-    constraint subjects_slug_format check (slug ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
-    constraint subjects_name_not_blank check (btrim(name) <> ''),
-    constraint subjects_color_format check (color ~ '^#[0-9A-Fa-f]{6}$')
-);
-
-create table public.grade_subjects (
-    id uuid primary key default gen_random_uuid(),
-    grade_id smallint not null references public.grades(id),
-    subject_id uuid not null references public.subjects(id),
-    is_active boolean not null default true,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
-    unique (grade_id, subject_id)
-);
-
 create table public.profiles (
     id uuid primary key references auth.users(id) on delete cascade,
-    display_name varchar(40) not null,
-    avatar_color varchar(7) not null default '#4f6ef7',
-    grade_id smallint references public.grades(id),
+    email text not null,
+    nickname varchar(40) not null,
+    show_realname boolean not null default false,
+    realname varchar(80),
+    role text not null default 'schueler',
+    color varchar(7) not null default '#4f6ef7',
     created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
-    constraint profiles_display_name_length check (
-        char_length(btrim(display_name)) between 2 and 40
+    constraint profiles_email_not_blank check (btrim(email) <> ''),
+    constraint profiles_nickname_length check (
+        char_length(btrim(nickname)) between 2 and 40
     ),
-    constraint profiles_avatar_color_format check (
-        avatar_color ~ '^#[0-9A-Fa-f]{6}$'
+    constraint profiles_realname_length check (
+        realname is null
+        or char_length(btrim(realname)) between 2 and 80
+    ),
+    constraint profiles_role_valid check (
+        role in ('schueler', 'lehrer', 'sekretariat', 'admin')
+    ),
+    constraint profiles_color_format check (
+        color ~ '^#[0-9A-Fa-f]{6}$'
     )
 );
 
-create table public.user_roles (
-    user_id uuid primary key references public.profiles(id) on delete cascade,
-    role public.app_role not null default 'student',
-    assigned_by uuid references public.profiles(id) on delete set null,
+create table public.threads (
+    id uuid primary key default gen_random_uuid(),
+    stufe smallint not null,
+    subject text not null,
+    title varchar(160) not null,
+    author_id uuid not null default auth.uid()
+        references public.profiles(id) on delete cascade,
+    solved boolean not null default false,
     created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
+    constraint threads_stufe_valid check (stufe in (11, 12, 13)),
+    constraint threads_subject_valid check (
+        subject in (
+            'mathe',
+            'physik',
+            'info',
+            'technik',
+            'chemie',
+            'deutsch',
+            'englisch',
+            'gk',
+            'geschichte',
+            'ethik'
+        )
+    ),
+    constraint threads_title_length check (
+        char_length(btrim(title)) between 3 and 160
+    )
 );
 
-create table public.teacher_assignments (
-    user_id uuid not null references public.profiles(id) on delete cascade,
-    grade_subject_id uuid not null references public.grade_subjects(id) on delete cascade,
-    assigned_by uuid references public.profiles(id) on delete set null,
+create table public.posts (
+    id uuid primary key default gen_random_uuid(),
+    thread_id uuid not null
+        references public.threads(id) on delete cascade,
+    author_id uuid not null default auth.uid()
+        references public.profiles(id) on delete cascade,
+    body text not null,
     created_at timestamptz not null default now(),
-    primary key (user_id, grade_subject_id)
+    constraint posts_body_length check (
+        char_length(btrim(body)) between 1 and 10000
+    )
 );
 
-create index profiles_grade_id_idx on public.profiles(grade_id);
-create index grade_subjects_grade_id_idx on public.grade_subjects(grade_id);
-create index grade_subjects_subject_id_idx on public.grade_subjects(subject_id);
-create index teacher_assignments_grade_subject_id_idx
-    on public.teacher_assignments(grade_subject_id);
+create view public.profiles_public
+with (security_barrier = true)
+as
+select
+    id,
+    case
+        when show_realname and realname is not null then realname
+        else nickname
+    end as display_name,
+    role,
+    color,
+    created_at
+from public.profiles;
 
-create or replace function app_private.set_updated_at()
-returns trigger
-language plpgsql
-security invoker
-set search_path = pg_catalog
-as $$
-begin
-    new.updated_at = now();
-    return new;
-end;
-$$;
-
-create trigger grades_set_updated_at
-before update on public.grades
-for each row execute function app_private.set_updated_at();
-
-create trigger subjects_set_updated_at
-before update on public.subjects
-for each row execute function app_private.set_updated_at();
-
-create trigger grade_subjects_set_updated_at
-before update on public.grade_subjects
-for each row execute function app_private.set_updated_at();
-
-create trigger profiles_set_updated_at
-before update on public.profiles
-for each row execute function app_private.set_updated_at();
-
-create trigger user_roles_set_updated_at
-before update on public.user_roles
-for each row execute function app_private.set_updated_at();
+create index profiles_role_idx on public.profiles(role);
+create index threads_feed_idx
+    on public.threads(stufe, subject, created_at desc);
+create index threads_author_id_idx on public.threads(author_id);
+create index posts_thread_created_idx
+    on public.posts(thread_id, created_at);
+create index posts_author_id_idx on public.posts(author_id);
 
 create or replace function app_private.current_user_role()
-returns public.app_role
+returns text
 language sql
 stable
 security definer
@@ -124,24 +102,11 @@ set search_path = pg_catalog, public
 as $$
     select coalesce(
         (
-            select user_roles.role
-            from public.user_roles
-            where user_roles.user_id = (select auth.uid())
+            select profiles.role
+            from public.profiles
+            where profiles.id = (select auth.uid())
         ),
-        'student'::public.app_role
-    );
-$$;
-
-create or replace function app_private.is_moderator()
-returns boolean
-language sql
-stable
-security definer
-set search_path = pg_catalog, public
-as $$
-    select app_private.current_user_role() in (
-        'moderator'::public.app_role,
-        'admin'::public.app_role
+        'schueler'
     );
 $$;
 
@@ -152,7 +117,21 @@ stable
 security definer
 set search_path = pg_catalog, public
 as $$
-    select app_private.current_user_role() = 'admin'::public.app_role;
+    select app_private.current_user_role() = 'admin';
+$$;
+
+create or replace function app_private.can_mark_solved()
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $$
+    select app_private.current_user_role() in (
+        'lehrer',
+        'sekretariat',
+        'admin'
+    );
 $$;
 
 create or replace function app_private.handle_new_user()
@@ -162,25 +141,164 @@ security definer
 set search_path = pg_catalog, public
 as $$
 declare
-    requested_name text;
+    requested_nickname text;
+    requested_realname text;
     requested_color text;
 begin
-    requested_name := nullif(btrim(new.raw_user_meta_data ->> 'display_name'), '');
-    requested_color := new.raw_user_meta_data ->> 'avatar_color';
+    requested_nickname := nullif(
+        btrim(new.raw_user_meta_data ->> 'nickname'),
+        ''
+    );
+    requested_realname := nullif(
+        btrim(new.raw_user_meta_data ->> 'realname'),
+        ''
+    );
+    requested_color := new.raw_user_meta_data ->> 'color';
 
-    if requested_name is null or char_length(requested_name) not between 2 and 40 then
-        requested_name := 'TG Schüler';
+    if requested_nickname is null
+        or char_length(requested_nickname) not between 2 and 40 then
+        requested_nickname := 'TG Schüler';
     end if;
 
-    if requested_color is null or requested_color !~ '^#[0-9A-Fa-f]{6}$' then
+    if requested_realname is not null
+        and char_length(requested_realname) not between 2 and 80 then
+        requested_realname := null;
+    end if;
+
+    if requested_color is null
+        or requested_color !~ '^#[0-9A-Fa-f]{6}$' then
         requested_color := '#4f6ef7';
     end if;
 
-    insert into public.profiles (id, display_name, avatar_color)
-    values (new.id, requested_name, requested_color);
+    insert into public.profiles (
+        id,
+        email,
+        nickname,
+        show_realname,
+        realname,
+        role,
+        color
+    )
+    values (
+        new.id,
+        new.email,
+        requested_nickname,
+        false,
+        requested_realname,
+        'schueler',
+        requested_color
+    );
 
-    insert into public.user_roles (user_id, role)
-    values (new.id, 'student');
+    return new;
+end;
+$$;
+
+create or replace function app_private.protect_profile_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+    if new.id is distinct from old.id
+        or new.created_at is distinct from old.created_at then
+        raise exception 'Protected profile fields cannot be changed'
+            using errcode = '42501';
+    end if;
+
+    return new;
+end;
+$$;
+
+create or replace function public.set_user_role(
+    target_user_id uuid,
+    new_role text
+)
+returns void
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+    if coalesce(auth.role(), '') <> 'service_role'
+        and not app_private.is_admin() then
+        raise exception 'Only admins can change roles'
+            using errcode = '42501';
+    end if;
+
+    if new_role not in ('schueler', 'lehrer', 'sekretariat', 'admin') then
+        raise exception 'Invalid role'
+            using errcode = '22023';
+    end if;
+
+    update public.profiles
+    set role = new_role
+    where id = target_user_id;
+
+    if not found then
+        raise exception 'Profile not found'
+            using errcode = '22023';
+    end if;
+end;
+$$;
+
+create or replace function app_private.sync_user_email()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+    update public.profiles
+    set email = new.email
+    where id = new.id;
+
+    return new;
+end;
+$$;
+
+create or replace function app_private.protect_thread_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+    if new.id is distinct from old.id
+        or new.author_id is distinct from old.author_id
+        or new.created_at is distinct from old.created_at then
+        raise exception 'Protected thread fields cannot be changed'
+            using errcode = '42501';
+    end if;
+
+    if old.author_id <> (select auth.uid())
+        and (
+            new.stufe is distinct from old.stufe
+            or new.subject is distinct from old.subject
+            or new.title is distinct from old.title
+        ) then
+        raise exception 'Privileged users may only change solved state'
+            using errcode = '42501';
+    end if;
+
+    return new;
+end;
+$$;
+
+create or replace function app_private.protect_post_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+    if new.id is distinct from old.id
+        or new.thread_id is distinct from old.thread_id
+        or new.author_id is distinct from old.author_id
+        or new.created_at is distinct from old.created_at then
+        raise exception 'Protected post fields cannot be changed'
+            using errcode = '42501';
+    end if;
 
     return new;
 end;
@@ -190,105 +308,130 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function app_private.handle_new_user();
 
-alter table public.grades enable row level security;
-alter table public.subjects enable row level security;
-alter table public.grade_subjects enable row level security;
+create trigger on_auth_user_email_updated
+after update of email on auth.users
+for each row
+when (new.email is distinct from old.email)
+execute function app_private.sync_user_email();
+
+create trigger profiles_protect_update
+before update on public.profiles
+for each row execute function app_private.protect_profile_update();
+
+create trigger threads_protect_update
+before update on public.threads
+for each row execute function app_private.protect_thread_update();
+
+create trigger posts_protect_update
+before update on public.posts
+for each row execute function app_private.protect_post_update();
+
 alter table public.profiles enable row level security;
-alter table public.user_roles enable row level security;
-alter table public.teacher_assignments enable row level security;
+alter table public.threads enable row level security;
+alter table public.posts enable row level security;
 
-revoke all on table public.grades from anon, authenticated;
-revoke all on table public.subjects from anon, authenticated;
-revoke all on table public.grade_subjects from anon, authenticated;
 revoke all on table public.profiles from anon, authenticated;
-revoke all on table public.user_roles from anon, authenticated;
-revoke all on table public.teacher_assignments from anon, authenticated;
+revoke all on table public.threads from anon, authenticated;
+revoke all on table public.posts from anon, authenticated;
+revoke all on table public.profiles_public from public, anon, authenticated;
 
-grant select on table public.grades to authenticated;
-grant select on table public.subjects to authenticated;
-grant select on table public.grade_subjects to authenticated;
 grant select on table public.profiles to authenticated;
-grant update (display_name, avatar_color, grade_id)
+grant update (nickname, show_realname, realname, color)
     on table public.profiles to authenticated;
-grant select on table public.user_roles to authenticated;
-grant select on table public.teacher_assignments to authenticated;
+grant select, insert, update, delete on table public.threads to authenticated;
+grant select, insert, update, delete on table public.posts to authenticated;
+grant select on table public.profiles_public to authenticated;
 
 revoke all on function app_private.current_user_role() from public;
-revoke all on function app_private.is_moderator() from public;
 revoke all on function app_private.is_admin() from public;
+revoke all on function app_private.can_mark_solved() from public;
 grant execute on function app_private.current_user_role() to authenticated;
-grant execute on function app_private.is_moderator() to authenticated;
 grant execute on function app_private.is_admin() to authenticated;
+grant execute on function app_private.can_mark_solved() to authenticated;
+revoke all on function public.set_user_role(uuid, text) from public, anon;
+grant execute on function public.set_user_role(uuid, text)
+    to authenticated, service_role;
 
-create policy grades_select_active
-on public.grades
-for select
-to authenticated
-using (is_active or (select app_private.is_admin()));
-
-create policy subjects_select_active
-on public.subjects
-for select
-to authenticated
-using (is_active or (select app_private.is_admin()));
-
-create policy grade_subjects_select_active
-on public.grade_subjects
-for select
-to authenticated
-using (
-    (
-        is_active
-        and exists (
-            select 1
-            from public.grades
-            where grades.id = grade_subjects.grade_id
-                and grades.is_active
-        )
-        and exists (
-            select 1
-            from public.subjects
-            where subjects.id = grade_subjects.subject_id
-                and subjects.is_active
-        )
-    )
-    or (select app_private.is_admin())
-);
-
-create policy profiles_select_authenticated
+create policy profiles_select_own_or_admin
 on public.profiles
 for select
 to authenticated
-using (true);
+using (
+    id = (select auth.uid())
+    or (select app_private.is_admin())
+);
 
 create policy profiles_update_own
 on public.profiles
 for update
 to authenticated
-using ((select auth.uid()) = id)
-with check ((select auth.uid()) = id);
+using (id = (select auth.uid()))
+with check (id = (select auth.uid()));
 
-create policy user_roles_select_own_or_moderator
-on public.user_roles
+create policy threads_select_authenticated
+on public.threads
 for select
 to authenticated
-using (
-    user_id = (select auth.uid())
-    or (select app_private.is_moderator())
+using (true);
+
+create policy threads_insert_own
+on public.threads
+for insert
+to authenticated
+with check (
+    author_id = (select auth.uid())
+    and solved = false
 );
 
-create policy teacher_assignments_select_own_or_moderator
-on public.teacher_assignments
-for select
+create policy threads_update_owner_or_privileged
+on public.threads
+for update
 to authenticated
 using (
-    user_id = (select auth.uid())
-    or (select app_private.is_moderator())
+    author_id = (select auth.uid())
+    or (select app_private.can_mark_solved())
+)
+with check (
+    author_id = (select auth.uid())
+    or (select app_private.can_mark_solved())
 );
 
-comment on table public.user_roles is
-    'Security-sensitive roles. Users cannot update this table directly.';
+create policy threads_delete_own
+on public.threads
+for delete
+to authenticated
+using (author_id = (select auth.uid()));
+
+create policy posts_select_authenticated
+on public.posts
+for select
+to authenticated
+using (true);
+
+create policy posts_insert_own
+on public.posts
+for insert
+to authenticated
+with check (author_id = (select auth.uid()));
+
+create policy posts_update_own
+on public.posts
+for update
+to authenticated
+using (author_id = (select auth.uid()))
+with check (author_id = (select auth.uid()));
+
+create policy posts_delete_own
+on public.posts
+for delete
+to authenticated
+using (author_id = (select auth.uid()));
+
+comment on table public.profiles is
+    'Private V1 profile data. Other users read profiles_public instead.';
+comment on view public.profiles_public is
+    'Safe public profile projection without email or a hidden real name.';
 comment on schema app_private is
-    'Security helpers and operational tables not exposed through the Data API.';
+    'Security-definer helpers not exposed as Data API tables.';
 
 commit;

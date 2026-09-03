@@ -8,7 +8,7 @@
 - Trusted mutations: PostgreSQL RPC functions; Edge Functions only when secrets or external rate limiting are required.
 - Browser: untrusted. It receives no `service_role` key.
 
-The current `localStorage` application remains untouched during the database foundation phase. A repository adapter will later allow the same UI to use either demo data or Supabase.
+The current `localStorage` application remains untouched during the database foundation phase. Claude can integrate the stable V1 contract in `BACKEND_BRIEF.md` without rewriting the UI.
 
 ## Boundaries
 
@@ -35,8 +35,6 @@ src/
         forum/
         announcements/
         messages/
-        notifications/
-        moderation/
     lib/
     shared/
     styles/

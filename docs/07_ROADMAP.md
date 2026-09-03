@@ -10,15 +10,15 @@
 
 ## Delivery stages
 
-1. Architecture and local Supabase foundation.
-2. Vite module split with unchanged demo behavior.
-3. Auth, profiles and roles.
-4. Subjects and grades from PostgreSQL.
-5. Threads, posts, Helpful and solved state.
-6. Protected announcements.
-7. Real DMs, unread state, blocking and private Realtime.
-8. Notifications.
-9. Reports, moderation and sanctions.
-10. Private attachments and production hardening.
+1. Architecture plus Auth/profile/forum Supabase foundation.
+2. Apply and test the migration in a shared development Supabase project.
+3. Integrate Auth, profiles, roles, threads, posts and solved state.
+4. Move the frontend to Vite modules without changing the UI.
+5. Add Helpful reactions.
+6. Add protected announcements.
+7. Add real DMs, unread state, blocking and private Realtime.
+8. Add notifications.
+9. Add reports, moderation and sanctions.
+10. Add private attachments and production hardening.
 
 Each stage must leave the application runnable and independently reversible.

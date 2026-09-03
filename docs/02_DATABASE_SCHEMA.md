@@ -2,16 +2,14 @@
 
 ## Foundation included in backend v1
 
-- `profiles`: public account data keyed by `auth.users.id`.
-- `user_roles`: security-sensitive role separate from editable profile fields.
-- `grades`: configurable school grades.
-- `subjects`: configurable subjects.
-- `grade_subjects`: valid subject/grade combinations.
-- `teacher_assignments`: teacher permissions for a grade/subject combination.
+- `profiles`: private account data keyed by `auth.users.id`.
+- `profiles_public`: safe author identity and role projection.
+- `threads`: forum topics constrained to grades 11–13 and the agreed subject IDs.
+- `posts`: thread replies owned by stable user UUIDs.
 
 ## Planned application tables
 
-- Forum: `threads`, `posts`, `post_helpful`.
+- Forum: `post_helpful`.
 - Announcements: `announcements`, `announcement_targets`.
 - DMs: `conversations`, `conversation_members`, `direct_conversation_pairs`, `messages`, `user_blocks`.
 - Notifications: `notifications`.
@@ -24,5 +22,6 @@
 - Server owns timestamps.
 - `(post_id, user_id)` is unique for Helpful.
 - A direct conversation pair is unique.
-- Role updates are never exposed as profile updates.
+- Role updates are accepted only from admins or trusted server operations.
+- Email and hidden real names never appear in `profiles_public`.
 - User content uses soft deletion; moderation history is append-only.

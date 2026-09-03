@@ -14,11 +14,15 @@ Every exposed table must:
 
 - Use `auth.uid()` for ownership.
 - Never trust client `user_id`, role or timestamp.
-- Keep roles separate from editable profiles.
+- Protect the `profiles.role` column with column grants and the
+  admin-only `set_user_role` RPC.
+- Use `profiles_public` for other users so email and hidden real names are not exposed.
 - Use RPC functions for state transitions such as solved, moderation and role assignment.
 - Keep raw HTML out of user content and render plain text with `textContent`.
 - Store only publishable configuration in the browser.
 - Rate-limit signup, threads, posts, DMs, reports and uploads on the server.
 - Use block/report controls before enabling DMs in production.
 
-The first migration is deny-by-default: anonymous clients receive no school data, users cannot promote themselves, and reference data is read-only for normal accounts.
+The first migration is deny-by-default: anonymous clients receive no school
+data, users cannot promote themselves or impersonate authors, and privileged
+users cannot rewrite another user's thread while changing its solved state.
