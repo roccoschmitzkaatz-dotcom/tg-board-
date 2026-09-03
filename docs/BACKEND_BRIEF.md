@@ -1,76 +1,137 @@
-# TG Board — Backend-Brief für Bogdans KI (Supabase)
+# TG Board — Backend-Brief (Supabase V1)
 
-> Abstimm-Dokument zwischen **Backend (Bogdan + ChatGPT)** und **Frontend (Rocco + Claude)**.
-> Ziel: beide Hälften passen zusammen. Frontend baut **exakt gegen die hier definierten Tabellen/Regeln**.
-> Stand: 2026-09-03 · aus gemeinsamem Grill-Me.
+> Gemeinsamer Interface-Vertrag zwischen Backend (Bogdan + ChatGPT)
+> und Frontend (Rocco + Claude).
+>
+> Stand: 2026-09-03
 
-## Rolle (für Bogdans KI)
-Baue das **Supabase-Backend** für die Schul-Austausch-Plattform „TG Board": Datenbank, E-Mail-Login (Auth), Rollen/Rechte. Das Frontend (bestehende `index.html`, wird von Claude weitergebaut) spricht dein Backend über den Supabase-JS-Client an.
+## Verbindliche V1-Entscheidungen
 
-## Kern-Entscheidungen (fix, aus Grill-Me)
-- **Herzstück:** Fach-Foren — Frage → Antwort → „gelöst". Schüler helfen sich gegenseitig; Lehrer = Fallback.
-- **Login:** E-Mail (Schul-Gmail *oder* eigene E-Mail). Feste Account-ID. Anzeige wahlweise **Klarname oder Nickname**.
-- **Rang-System (wie Minecraft):** Admins (Bogdan + Rocco, evtl. ein Lehrer) vergeben Ränge. Rang schaltet Funktionen frei. **Rechte müssen serverseitig (RLS) abgesichert sein** — nicht nur im Frontend ausgeblendet.
-- **V1-Umfang:** Login · Fach-Foren je Stufe (alle sehen alle) · Rang-Feld mit *einer* sichtbaren Sonderfunktion (Lehrer/Sekretariat-Abzeichen).
+- Backend: Supabase Auth + PostgreSQL + Row Level Security.
+- Login: E-Mail und Passwort.
+- Signup: aktiviert; E-Mail-Bestätigung ist erforderlich.
+- Identität: ausschließlich `auth.users.id` beziehungsweise UUID,
+  niemals Nickname oder Klarname.
+- Alle Browser-Anfragen verwenden ausschließlich den publishable/anon Key.
+- Der `service_role` Key darf nie im Browser oder Repository stehen.
 
-## Vorgeschlagenes Datenschema (bitte so oder gegenvorschlag)
+## Tabellen
 
-### `profiles` (1:1 zu auth.users)
-| Feld | Typ | Notiz |
-|---|---|---|
-| id | uuid (PK, = auth.uid) | |
-| email | text | aus Auth |
-| nickname | text | Anzeigename |
-| show_realname | bool | Klarname statt Nickname zeigen |
-| realname | text, null | optional |
-| role | text | `schueler` \| `lehrer` \| `sekretariat` \| `admin` (default `schueler`) |
-| color | text | Avatar-Farbe (Hex), Default aus Palette |
-| created_at | timestamptz | |
+### `profiles`
 
-### `threads` (Foren-Themen)
-| Feld | Typ | Notiz |
-|---|---|---|
-| id | uuid (PK) | |
-| stufe | int | 11 / 12 / 13 |
-| subject | text | Fach-id (siehe Liste unten) |
-| title | text | |
-| author_id | uuid (FK profiles) | |
-| solved | bool | default false |
-| created_at | timestamptz | |
+Private Profildaten, 1:1 zu `auth.users`.
 
-### `posts` (Antworten in einem Thread)
-| Feld | Typ | Notiz |
-|---|---|---|
-| id | uuid (PK) | |
-| thread_id | uuid (FK threads) | |
-| author_id | uuid (FK profiles) | |
-| body | text | |
-| created_at | timestamptz | |
+| Feld | Typ | Regel |
+| --- | --- | --- |
+| `id` | uuid | PK, FK auf `auth.users.id` |
+| `email` | text | wird aus Supabase Auth synchronisiert |
+| `nickname` | varchar(40) | 2 bis 40 Zeichen |
+| `show_realname` | boolean | Standard `false` |
+| `realname` | varchar(80), null | optional |
+| `role` | text | `schueler`, `lehrer`, `sekretariat`, `admin` |
+| `color` | varchar(7) | Hex-Farbe |
+| `created_at` | timestamptz | serverseitig |
 
-**Fächer (subject-ids, fix):** `mathe, physik, info, technik, chemie, deutsch, englisch, gk, geschichte, ethik`
-**Stufen:** 11, 12, 13
+Ein Nutzer liest und bearbeitet nur sein eigenes vollständiges Profil.
+Admins dürfen Rollen ändern. `id`, `email` und `created_at` sind für
+Browser-Clients unveränderlich.
 
-### Rechte / RLS (wichtig)
-- **Lesen:** eingeloggte Nutzer dürfen alle `threads`/`posts`/`profiles` lesen.
-- **Schreiben:** nur eigene `threads`/`posts` erstellen (`author_id = auth.uid()`), eigene bearbeiten/löschen.
-- **`solved` setzen:** Thread-Autor **oder** Rolle `lehrer/sekretariat/admin`.
-- **`role` ändern:** nur `admin`. (So vergebt ihr Ränge.)
-- **Durchsagen/Lehrer-Infos:** V1 nur Abzeichen; volle Funktionen später.
+### `profiles_public`
 
-## Was das Frontend von dir braucht (Interface-Vertrag)
-1. **Supabase Projekt-URL** + **anon public Key** → ins Frontend (`js/supabase-config.js`, siehe Beispiel im Repo).
-2. Tabellen `profiles`, `threads`, `posts` mit obigen Feldern (oder abgestimmte Abweichung — dann hier eintragen).
-3. **E-Mail-Auth aktiviert** (Signup + Magic-Link oder Passwort — deine Wahl, bitte hier vermerken).
-4. RLS-Policies wie oben.
+Sichere Leseansicht für Autorenamen und Rang-Abzeichen. Das Frontend nutzt
+diese View für fremde Nutzer.
 
-## Nicht in V1 (spätere Phasen)
-- Öffentlicher Schüler-Lehrer-Chat + privater Schüler-Chat (Realtime) — erst nach Schul-Genehmigung.
-- Eigene KI (lernt aus echten Q&A).
-- Durchsagen-System, Moderation im Detail, viele Rang-Funktionen.
+| Feld | Typ | Regel |
+| --- | --- | --- |
+| `id` | uuid | Nutzer-ID |
+| `display_name` | text | Klarname nur bei `show_realname = true`, sonst Nickname |
+| `role` | text | sichtbarer Rang |
+| `color` | varchar(7) | Avatar-Farbe |
+| `created_at` | timestamptz | Erstellzeit |
 
-## Ablauf (fair, kollisionsfrei)
-1. Bogdan/KI: Tabellen + Auth + RLS in Supabase anlegen, dann **Projekt-URL + anon-Key** hier oder in `js/supabase-config.js` eintragen und pushen.
-2. Claude baut das Frontend exakt dagegen (Login-Maske, Foren-UI, Rang-Abzeichen).
-3. Abweichungen vom Schema? → **hier im Dokument** aktualisieren, damit beide Seiten synchron bleiben.
+Die View gibt weder E-Mail-Adressen noch verborgene Klarnamen aus. Alle
+eingeloggten Nutzer dürfen sie lesen.
 
-> Fragen ans Frontend / an Claude: einfach als Kommentar/Issue oder in diese Datei schreiben.
+### `threads`
+
+| Feld | Typ | Regel |
+| --- | --- | --- |
+| `id` | uuid | PK, serverseitiger Default |
+| `stufe` | smallint | 11, 12 oder 13 |
+| `subject` | text | Fach-ID aus der festen Liste |
+| `title` | varchar(160) | 3 bis 160 Zeichen |
+| `author_id` | uuid | FK auf `profiles`, Default `auth.uid()` |
+| `solved` | boolean | Standard `false` |
+| `created_at` | timestamptz | serverseitig |
+
+Fach-IDs: `mathe`, `physik`, `info`, `technik`, `chemie`, `deutsch`,
+`englisch`, `gk`, `geschichte`, `ethik`.
+
+### `posts`
+
+| Feld | Typ | Regel |
+| --- | --- | --- |
+| `id` | uuid | PK, serverseitiger Default |
+| `thread_id` | uuid | FK auf `threads`, Cascade Delete |
+| `author_id` | uuid | FK auf `profiles`, Default `auth.uid()` |
+| `body` | text | 1 bis 10.000 Zeichen |
+| `created_at` | timestamptz | serverseitig |
+
+## RLS-Vertrag
+
+| Aktion | Berechtigung |
+| --- | --- |
+| Vollständiges Profil lesen | eigener Nutzer oder Admin |
+| Öffentliche Profile lesen | alle eingeloggten Nutzer |
+| Eigenes Profil bearbeiten | eigener Nutzer; keine Änderung von ID, E-Mail oder Rolle |
+| Rolle ändern | Admin über `rpc("set_user_role", ...)` |
+| Threads und Posts lesen | alle eingeloggten Nutzer |
+| Thread/Post erstellen | nur mit `author_id = auth.uid()` |
+| Eigenen Thread/Post bearbeiten oder löschen | jeweiliger Autor |
+| `solved` ändern | Thread-Autor, Lehrer, Sekretariat oder Admin |
+| Fremden Thread sonst bearbeiten | niemand |
+
+RLS und Datenbank-Trigger schützen zusätzlich vor:
+
+- fremder oder gefälschter `author_id`;
+- Selbstbeförderung zum Admin;
+- beim Erstellen bereits gelösten Threads;
+- Änderung serverseitiger IDs und Zeitstempel;
+- ungültigen Stufen, Fach-IDs, Rollen, Farben und Textlängen.
+
+## Frontend-Aufrufe
+
+- Eigene Profildaten: `from("profiles")`
+- Öffentliche Autorenprofile: `from("profiles_public")`
+- Themen: `from("threads")`
+- Antworten: `from("posts")`
+
+Beim Erstellen von Threads und Posts soll das Frontend `author_id` nicht
+senden. Die Datenbank setzt es aus `auth.uid()`.
+
+## Konfiguration
+
+Die Vorlage liegt in `js/supabase-config.example.js`.
+Die lokale Datei `js/supabase-config.js` bleibt in `.gitignore`.
+
+```javascript
+window.TG_SUPABASE = {
+    url: "https://PROJECT.supabase.co",
+    anonKey: "PUBLISHABLE_OR_ANON_KEY"
+};
+```
+
+Die echte Projekt-URL und der publishable/anon Key werden erst nach Erstellung
+des gemeinsamen Supabase-Projekts lokal eingetragen. Der `service_role` Key
+wird niemals an Claude oder das Frontend weitergegeben.
+
+## Noch nicht in V1
+
+- Helpful-Reaktionen;
+- Ankündigungen;
+- Direct Messages und Realtime;
+- Benachrichtigungen;
+- Moderation;
+- Datei-Uploads.
+
+Diese Funktionen folgen in getrennten, überprüfbaren Migrationen.
