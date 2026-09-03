@@ -4,3 +4,9 @@ node_modules/
 *.log
 .vscode/
 .idea/
+.env
+.env.local
+.env.*.local
+.supabase/
+supabase/.branches/
+supabase/.temp/
