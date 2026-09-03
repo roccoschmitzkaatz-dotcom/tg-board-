@@ -6,6 +6,7 @@
 import { createRepository, hasBackend } from "./repository.js";
 import { renderAuthScreen } from "./auth-ui.js";
 import { renderForum } from "./forum-ui.js";
+import { renderProfile } from "./profile-ui.js";
 
 const repo = createRepository();
 const root = document.getElementById("app-root");
@@ -39,21 +40,32 @@ async function showApp() {
 
   root.innerHTML = `
     <header class="app-top">
-      <div class="who">
+      <button type="button" class="who who-btn" id="profile-btn" title="Profil bearbeiten">
         <span class="dot" style="background:${me.color}"></span>
         <b>${me.show_realname && me.realname ? me.realname : me.nickname}</b>
         <span class="role role-${me.role}">${roleLabel(me.role)}</span>
-      </div>
+      </button>
       <button type="button" class="btn ghost" id="logout-btn">Abmelden</button>
     </header>
-    <div id="forum-root"></div>`;
+    <div id="view-root"></div>`;
 
   root.querySelector("#logout-btn").addEventListener("click", async () => {
     await repo.signOut();
     boot();
   });
 
-  renderForum(root.querySelector("#forum-root"), repo, me);
+  const viewRoot = root.querySelector("#view-root");
+  root.querySelector("#profile-btn").addEventListener("click", () => showProfile(me, viewRoot));
+
+  renderForum(viewRoot, repo, me);
+}
+
+function showProfile(me, viewRoot) {
+  renderProfile(
+    viewRoot, repo, me,
+    (updated) => showApp(), // gespeichert -> App neu laden, damit Header/Farbe stimmen
+    () => renderForum(viewRoot, repo, me), // zurück ohne Speichern
+  );
 }
 
 function roleLabel(r) {

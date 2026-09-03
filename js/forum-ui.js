@@ -21,15 +21,21 @@ function timeAgo(iso) {
 }
 
 // Cache für öffentliche Autorenprofile — vermeidet N Einzel-Requests pro Liste.
+const ROLE_LABEL = { schueler: "", lehrer: "Lehrer", sekretariat: "Sekretariat", admin: "Admin" };
 const authorCache = new Map();
-async function authorName(repo, userId) {
+async function authorInfo(repo, userId) {
   if (authorCache.has(userId)) return authorCache.get(userId);
+  let info = { name: "Unbekannt", role: "schueler" };
   try {
     const p = await repo.getPublicProfile(userId);
-    const name = p ? p.display_name : "Unbekannt";
-    authorCache.set(userId, name);
-    return name;
-  } catch { return "Unbekannt"; }
+    if (p) info = { name: p.display_name, role: p.role };
+  } catch { /* Unbekannt bleibt Fallback */ }
+  authorCache.set(userId, info);
+  return info;
+}
+function roleBadge(role) {
+  const label = ROLE_LABEL[role];
+  return label ? ` <span class="mini-role role-${role}">${label}</span>` : "";
 }
 
 export function renderForum(root, repo, me) {
@@ -126,10 +132,10 @@ export function renderForum(root, repo, me) {
           return;
         }
         const rows = await Promise.all(threads.map(async t => {
-          const name = await authorName(repo, t.author_id);
+          const author = await authorInfo(repo, t.author_id);
           return `<button type="button" class="thread-row" data-id="${t.id}">
               <div class="tt">${t.solved ? '<span class="solved">✓ Gelöst</span> ' : ''}${esc(t.title)}</div>
-              <div class="sub"><span>von ${esc(name)}</span><span>${timeAgo(t.created_at)}</span></div>
+              <div class="sub"><span>von ${esc(author.name)}${roleBadge(author.role)}</span><span>${timeAgo(t.created_at)}</span></div>
             </button>`;
         }));
         list.className = "";
@@ -182,10 +188,10 @@ export function renderForum(root, repo, me) {
           return;
         }
         const rows = await Promise.all(posts.map(async p => {
-          const name = await authorName(repo, p.author_id);
+          const author = await authorInfo(repo, p.author_id);
           const self = p.author_id === me.id;
-          return `<div class="post-row">
-              <div class="ph"><b>${esc(name)}</b>${self ? ' <span class="you">(du)</span>' : ''}<span class="when">${timeAgo(p.created_at)}</span></div>
+          return `<div class="post-row${["lehrer", "sekretariat", "admin"].includes(author.role) ? " post-staff" : ""}">
+              <div class="ph"><b>${esc(author.name)}</b>${roleBadge(author.role)}${self ? ' <span class="you">(du)</span>' : ''}<span class="when">${timeAgo(p.created_at)}</span></div>
               <div class="bd">${esc(p.body)}</div>
             </div>`;
         }));
