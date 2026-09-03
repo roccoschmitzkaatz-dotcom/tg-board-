@@ -161,7 +161,7 @@ export function renderForum(root, repo, me) {
       const rows = await Promise.all(items.map(async t => {
         const author = await authorInfo(repo, t.author_id);
         return `<button type="button" class="thread-row" data-id="${t.id}">
-            <div class="tt">${t.solved ? '<span class="solved">✓ Gelöst</span> ' : ''}${esc(t.title)}</div>
+            <div class="tt">${t.solved ? '<span class="solved">✓ Geklärt</span> ' : ''}${esc(t.title)}</div>
             <div class="sub"><span>von ${esc(author.name)}${roleBadge(author.role)}</span><span>${timeAgo(t.created_at)}</span></div>
           </button>`;
       }));
@@ -189,8 +189,8 @@ export function renderForum(root, repo, me) {
   }
 
   async function renderThread() {
-    body.innerHTML = `<h1 class="thread-title">${activeThread.solved ? '<span class="solved">✓ Gelöst</span> ' : ''}${esc(activeThread.title)}</h1>
-      <button type="button" class="btn ghost" id="solve-btn">${activeThread.solved ? '✓ Als gelöst markiert' : 'Als gelöst markieren'}</button>
+    body.innerHTML = `<h1 class="thread-title">${activeThread.solved ? '<span class="solved">✓ Geklärt</span> ' : ''}${esc(activeThread.title)}</h1>
+      <button type="button" class="btn ghost" id="solve-btn">${activeThread.solved ? '✓ Als geklärt markiert' : 'Als geklärt markieren'}</button>
       <div id="post-list" class="loading">Lade Antworten…</div>
       <div class="reply-box">
         <textarea id="reply-text" rows="3" placeholder="Schreib deine Antwort…"></textarea>
