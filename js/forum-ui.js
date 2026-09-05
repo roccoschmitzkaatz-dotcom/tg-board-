@@ -119,15 +119,24 @@ export function renderForum(root, repo, me) {
     const newBtn = body.querySelector("#new-thread-btn");
     const form = body.querySelector("#new-thread-form");
     const titleInput = body.querySelector("#new-thread-title");
+    const saveBtn = body.querySelector("#new-thread-save");
     newBtn.addEventListener("click", () => { form.hidden = !form.hidden; if (!form.hidden) titleInput.focus(); });
-    body.querySelector("#new-thread-save").addEventListener("click", async () => {
+
+    async function saveThread() {
       const title = titleInput.value.trim();
       if (title.length < 3) return alert("Bitte einen etwas längeren Titel schreiben (mind. 3 Zeichen).");
-      const { error } = await repo.createThread({ stufe, subject, title });
+      saveBtn.disabled = true;
+      const { data, error } = await repo.createThread({ stufe, subject, title });
+      saveBtn.disabled = false;
       if (error) return alert("Konnte nicht gespeichert werden: " + error.message);
       titleInput.value = ""; form.hidden = true;
+      // Direkt ins neue Thema springen — man will meist gleich losschreiben.
+      if (data) { activeThread = data; return route(); }
       loadList();
-    });
+    }
+    saveBtn.addEventListener("click", saveThread);
+    // Enter im Titelfeld = Frage stellen (Shift+Enter bleibt frei).
+    titleInput.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveThread(); } });
 
     let allThreads = [];
     let sortMode = "new";
@@ -203,15 +212,21 @@ export function renderForum(root, repo, me) {
       activeThread = data; renderThread();
     });
 
-    body.querySelector("#reply-send").addEventListener("click", async () => {
-      const ta = body.querySelector("#reply-text");
-      const text = ta.value.trim();
+    const sendBtn = body.querySelector("#reply-send");
+    const replyTa = body.querySelector("#reply-text");
+    async function sendReply() {
+      const text = replyTa.value.trim();
       if (!text) return;
+      sendBtn.disabled = true;
       const { error } = await repo.createPost({ thread_id: activeThread.id, body: text });
+      sendBtn.disabled = false;
       if (error) return alert("Antwort konnte nicht gesendet werden: " + error.message);
-      ta.value = "";
+      replyTa.value = "";
       loadPosts();
-    });
+    }
+    sendBtn.addEventListener("click", sendReply);
+    // Cmd/Ctrl+Enter im Antwortfeld = senden (Zeilenumbruch mit Enter bleibt möglich).
+    replyTa.addEventListener("keydown", e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendReply(); } });
 
     async function loadPosts() {
       const list = body.querySelector("#post-list");
