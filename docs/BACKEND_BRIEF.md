@@ -112,12 +112,12 @@ senden. Die Datenbank setzt es aus `auth.uid()`.
 ## Konfiguration
 
 Die Vorlage liegt in `js/supabase-config.example.js`.
-Die lokale Datei `js/supabase-config.js` bleibt in `.gitignore`.
+Die Datei `js/supabase-config.js` enthaelt nur Projekt-URL und publishable/anon Key und darf fuer das statische Frontend committed werden. Secrets bleiben in `.env` und niemals im Browser.
 
 ```javascript
 window.TG_SUPABASE = {
-    url: "https://PROJECT.supabase.co",
-    anonKey: "PUBLISHABLE_OR_ANON_KEY"
+    url: "https://qefbnsrcldcwlxcttyat.supabase.co",
+    anonKey: "sb_publishable_..."
 };
 ```
 
