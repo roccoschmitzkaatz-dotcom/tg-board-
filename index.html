@@ -153,10 +153,13 @@
 
 <div class="wrap" id="app"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
 <script>
-(function(){
+(async function(){
   "use strict";
   var LS='tgboard_v1', THKEY='tgboard_theme';
+  var supabaseClient=null, useBackend=false, authMessage='';
   var COLORS=['#4f6ef7','#12b3a6','#f0961e','#e8556f','#8b5cf6','#0ea5e9','#22c55e','#ef4444'];
 
   // ---- Theme (Hell/Dunkel) — eigener Umschalter via html-Klasse ----
@@ -185,6 +188,58 @@
   var STUFEN=[{s:'11',c:'var(--s11)',hx:'#4f6ef7'},{s:'12',c:'var(--s12)',hx:'#12b3a6'},{s:'13',c:'var(--s13)',hx:'#f0961e'}];
 
   var DEFAULT_CONTACTS=[{n:'Max',c:'#f0961e'},{n:'Vincent',c:'#0ea5e9'},{n:'Moritz',c:'#e8556f'},{n:'Lena K.',c:'#12b3a6'},{n:'Tom',c:'#8b5cf6'}];
+
+  function setupBackend(){
+    var cfg=window.TG_SUPABASE;
+    if(!cfg||!cfg.url||!cfg.anonKey||!window.supabase)return false;
+    supabaseClient=window.supabase.createClient(cfg.url,cfg.anonKey);
+    useBackend=true;
+    return true;
+  }
+  async function refreshBackend(){
+    if(!useBackend)return;
+    var auth=await supabaseClient.auth.getUser();
+    if(auth.error||!auth.data.user){DB=seed();DB.user=null;return;}
+    var u=auth.data.user;
+    var prof=await supabaseClient.from('profiles').select('id,email,nickname,color,role').eq('id',u.id).maybeSingle();
+    if(prof.error)throw prof.error;
+    var p=prof.data||{id:u.id,email:u.email,nickname:(u.email||'TG').split('@')[0],color:COLORS[0],role:'schueler'};
+    DB=seed();
+    DB.user={id:p.id,email:p.email,n:p.nickname,c:p.color,role:p.role};
+    await loadBackendForum();
+  }
+  async function loadBackendForum(){
+    var th=await supabaseClient.from('threads').select('id,stufe,subject,title,author_id,solved,created_at').order('created_at',{ascending:true});
+    if(th.error)throw th.error;
+    var ps=await supabaseClient.from('posts').select('id,thread_id,author_id,body,created_at').order('created_at',{ascending:true});
+    if(ps.error)throw ps.error;
+    var pub=await supabaseClient.from('profiles_public').select('id,display_name,color');
+    if(pub.error)throw pub.error;
+    var people={};
+    (pub.data||[]).forEach(function(p){people[p.id]={n:p.display_name,c:p.color};});
+    DB.threads={};
+    (th.data||[]).forEach(function(t){
+      var key=String(t.stufe)+'/'+t.subject, a=people[t.author_id]||{n:'TG User',c:COLORS[0]};
+      DB.threads[key]=DB.threads[key]||[];
+      DB.threads[key].push({id:t.id,tt:t.title,by:a.n,c:a.c,t:new Date(t.created_at).getTime(),solved:t.solved,author_id:t.author_id,posts:[]});
+    });
+    var byId={};
+    for(var k in DB.threads){DB.threads[k].forEach(function(t){byId[t.id]=t;});}
+    (ps.data||[]).forEach(function(p){
+      var t=byId[p.thread_id]; if(!t)return;
+      var a=people[p.author_id]||{n:'TG User',c:COLORS[0]};
+      t.posts.push({id:p.id,by:a.n,c:a.c,t:new Date(p.created_at).getTime(),bd:p.body,author_id:p.author_id});
+    });
+    for(var kk in DB.threads){DB.threads[kk]=DB.threads[kk].filter(function(t){return t.posts.length;});}
+  }
+  async function boot(){
+    setupBackend();
+    try{await refreshBackend();}catch(e){authMessage=e.message||String(e);DB=load();}
+  }
+  async function rerenderFromBackend(){
+    if(useBackend){try{await refreshBackend();}catch(e){authMessage=e.message||String(e);}}
+    render();
+  }
   var DB=load();
   function load(){
     try{var d=JSON.parse(localStorage.getItem(LS)); if(d){ if(!d.contacts)d.contacts=DEFAULT_CONTACTS.slice(); if(!d.announce)d.announce=defaultAnnounce(); return d; }}catch(e){}
@@ -250,14 +305,36 @@
   }
 
   function renderOnboard(){
+    if(useBackend){
+      app.innerHTML=
+        '<h1 style="margin-top:60px">Willkommen beim TG Board</h1>'+
+        '<p class="lead">Melde dich mit E-Mail und Passwort an. Neue Accounts müssen ihre E-Mail bestätigen.</p>'+
+        '<div style="max-width:420px"><label>E-Mail</label><input id="em" type="email" placeholder="name@example.com" autocomplete="email">'+
+        '<label style="margin-top:14px">Passwort</label><input id="pw" type="password" autocomplete="current-password" placeholder="Mindestens 6 Zeichen">'+
+        '<label style="margin-top:14px">Anzeigename</label><input id="nm" placeholder="z. B. Rocco F." maxlength="40">'+
+        '<label style="margin-top:14px">Farbe</label><div class="colors" id="cols"></div>'+
+        '<div class="row" style="margin-top:18px;gap:10px"><button class="btn" id="signin">Einloggen</button><button class="btn ghost" id="signup">Account erstellen</button></div></div>'+
+        '<div class="note">'+esc(authMessage||'Backend aktiv: Profile, Themen und Beiträge werden jetzt in Supabase gespeichert.')+'</div>';
+      var chosen=COLORS[0], cols=document.getElementById('cols');
+      cols.innerHTML=COLORS.map(function(c,i){return '<button style="background:'+c+'" class="'+(i===0?'on':'')+'" data-c="'+c+'"></button>';}).join('');
+      cols.querySelectorAll('[data-c]').forEach(function(b){b.onclick=function(){chosen=b.dataset.c;cols.querySelectorAll('button').forEach(function(x){x.classList.remove('on');});b.classList.add('on');};});
+      function vals(){return {email:document.getElementById('em').value.trim(),password:document.getElementById('pw').value,nick:document.getElementById('nm').value.trim()};}
+      document.getElementById('signin').onclick=async function(){var v=vals(); if(!v.email||!v.password)return;
+        var r=await supabaseClient.auth.signInWithPassword({email:v.email,password:v.password});
+        authMessage=r.error?r.error.message:''; route={v:'home'}; await rerenderFromBackend();};
+      document.getElementById('signup').onclick=async function(){var v=vals(); if(!v.email||!v.password||!v.nick)return;
+        var r=await supabaseClient.auth.signUp({email:v.email,password:v.password,options:{data:{nickname:v.nick,color:chosen}}});
+        authMessage=r.error?r.error.message:'Account erstellt. Bitte E-Mail bestätigen und danach einloggen.'; await rerenderFromBackend();};
+      return;
+    }
     app.innerHTML=
-      '<h1 style="margin-top:60px">Willkommen beim TG Board 👋</h1>'+
+      '<h1 style="margin-top:60px">Willkommen beim TG Board</h1>'+
       '<p class="lead">Der Ort, an dem sich Schüler des Technischen Gymnasiums stufenweise über die Fächer austauschen. Wähl einen Namen, dann geht\'s los.</p>'+
       '<div style="max-width:360px"><label>Dein Anzeigename</label>'+
       '<input id="nm" placeholder="z. B. Rocco F." maxlength="24">'+
       '<label style="margin-top:14px">Farbe</label><div class="colors" id="cols"></div>'+
-      '<button class="btn" id="go" style="margin-top:18px;width:100%">Los geht\'s →</button></div>'+
-      '<div class="note">Prototyp: Alles läuft lokal in deinem Browser (kein echter Server, keine Daten werden übertragen). Zum Zeigen, wie die Plattform funktionieren würde.</div>';
+      '<button class="btn" id="go" style="margin-top:18px;width:100%">Los geht\'s</button></div>'+
+      '<div class="note">Demo mode: Supabase-Konfiguration wurde nicht geladen.</div>';
     var chosen=COLORS[0];
     var cols=document.getElementById('cols');
     cols.innerHTML=COLORS.map(function(c,i){return '<button style="background:'+c+'" class="'+(i===0?'on':'')+'" data-c="'+c+'"></button>';}).join('');
@@ -366,7 +443,7 @@
       return '<button class="thread" data-id="'+t.id+'"><div class="tt">'+(t.solved?'<span class="solved">✓ Gelöst</span> ':'')+esc(t.tt)+'</div>'+
         '<div class="sub"><span>von '+esc(t.by)+'</span><span>'+t.posts.length+' Beiträge</span><span>'+ago(t.posts[t.posts.length-1].t)+'</span></div></button>';
     }).join('');}
-    tl.querySelectorAll('[data-id]').forEach(function(b){b.onclick=function(){route={v:'thread',s:route.s,subj:route.subj,id:+b.dataset.id};render();};});
+    tl.querySelectorAll('[data-id]').forEach(function(b){b.onclick=function(){route={v:'thread',s:route.s,subj:route.subj,id:b.dataset.id};render();};});
     document.getElementById('new').onclick=function(){newThread(key);};
     document.getElementById('ann').onclick=function(){
       var tx=prompt('Ankündigung (z. B. „Klausur am …", „Hausaufgabe bis …"):'); if(!tx||!tx.trim())return;
@@ -374,9 +451,16 @@
     };
   }
 
-  function newThread(key){
+  async function newThread(key){
     var tt=prompt('Titel des neuen Themas:'); if(!tt||!tt.trim())return;
     var first=prompt('Deine erste Nachricht:')||'';
+    if(useBackend){
+      var created=await supabaseClient.from('threads').insert({stufe:+route.s,subject:route.subj,title:tt.trim()}).select('id').single();
+      if(created.error){alert(created.error.message);return;}
+      var posted=await supabaseClient.from('posts').insert({thread_id:created.data.id,body:first.trim()||tt.trim()});
+      if(posted.error){alert(posted.error.message);return;}
+      route={v:'thread',s:route.s,subj:route.subj,id:created.data.id}; await rerenderFromBackend(); return;
+    }
     DB.threads[key]=DB.threads[key]||[];
     var id=Date.now();
     DB.threads[key].push({id:id,tt:tt.trim(),by:DB.user.n,c:DB.user.c,t:Date.now(),
@@ -412,10 +496,22 @@
       if(p.likedByMe){p.likes--;p.likedByMe=false;}else{p.likes++;p.likedByMe=true;}
       save();render();
     };});
-    document.getElementById('solve').onclick=function(){t.solved=!t.solved;save();render();};
-    document.getElementById('send').onclick=function(){
+    document.getElementById('solve').onclick=async function(){
+      if(useBackend){
+        var r=await supabaseClient.from('threads').update({solved:!t.solved}).eq('id',t.id);
+        if(r.error){alert(r.error.message);return;}
+        await rerenderFromBackend();return;
+      }
+      t.solved=!t.solved;save();render();};
+    document.getElementById('send').onclick=async function(){
       var v=document.getElementById('rep').value.trim(); if(!v)return;
-      t.posts.push({by:DB.user.n,c:DB.user.c,t:Date.now(),bd:v});save();render();
+      if(useBackend){
+        var r=await supabaseClient.from('posts').insert({thread_id:t.id,body:v});
+        if(r.error){alert(r.error.message);return;}
+        await rerenderFromBackend();
+      }else{
+        t.posts.push({by:DB.user.n,c:DB.user.c,t:Date.now(),bd:v});save();render();
+      }
       setTimeout(function(){window.scrollTo(0,document.body.scrollHeight);},30);
     };
   }
@@ -478,15 +574,24 @@
       '<label>Anzeigename</label><input id="pn" value="'+esc(DB.user.n)+'" maxlength="24">'+
       '<label style="margin-top:14px">Farbe</label><div class="colors" id="pc"></div>'+
       '<div class="row" style="margin-top:20px;gap:10px"><button class="btn" id="psave">Speichern</button>'+
-      '<button class="btn ghost" id="reset">Alles zurücksetzen</button></div></div>'+
-      '<div class="note">Prototyp-Hinweis: Für die echte Version (viele Schüler, echte Logins) würde man ein fertiges Login-/Datenbank-System wie Supabase oder Firebase nutzen — dann sind Accounts + Beiträge für alle sichtbar und gespeichert.</div>';
+      '<button class="btn ghost" id="reset">'+(useBackend?'Ausloggen':'Alles zurücksetzen')+'</button></div></div>'+
+      '<div class="note">'+(useBackend?'Backend aktiv: Dein Profil liegt in Supabase.':'Demo mode: Alles läuft lokal in deinem Browser.')+'</div>';
     var chosen=DB.user.c, pc=document.getElementById('pc');
     pc.innerHTML=COLORS.map(function(c){return '<button style="background:'+c+'" class="'+(c===chosen?'on':'')+'" data-c="'+c+'"></button>';}).join('');
     pc.querySelectorAll('[data-c]').forEach(function(b){b.onclick=function(){chosen=b.dataset.c;pc.querySelectorAll('button').forEach(function(x){x.classList.remove('on');});b.classList.add('on');};});
-    document.getElementById('psave').onclick=function(){var n=document.getElementById('pn').value.trim();if(n)DB.user.n=n;DB.user.c=chosen;save();render();};
-    document.getElementById('reset').onclick=function(){if(confirm('Alles zurücksetzen (Account + Beiträge)?')){localStorage.removeItem(LS);DB=seed();route={v:'stufen'};render();}};
+    document.getElementById('psave').onclick=async function(){var n=document.getElementById('pn').value.trim();if(!n)return;
+      if(useBackend){
+        var r=await supabaseClient.from('profiles').update({nickname:n,color:chosen}).eq('id',DB.user.id);
+        if(r.error){alert(r.error.message);return;}
+        await rerenderFromBackend();return;
+      }
+      DB.user.n=n;DB.user.c=chosen;save();render();};
+    document.getElementById('reset').onclick=async function(){
+      if(useBackend){await supabaseClient.auth.signOut();authMessage='Du bist ausgeloggt.';DB=seed();route={v:'home'};render();return;}
+      if(confirm('Alles zurücksetzen (Account + Beiträge)?')){localStorage.removeItem(LS);DB=seed();route={v:'stufen'};render();}};
   }
 
+  await boot();
   render();
 })();
 </script>
